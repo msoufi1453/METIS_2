@@ -71,3 +71,12 @@ def test_noise_presets():
     assert np.median(std[f > 0.8]) > 1.5 * np.median(std[f < 0.2])
     mean0, std0, _ = PRESETS['none'].measure(f, 1.0, rng)
     assert np.array_equal(mean0, f) and not std0.any()
+
+
+def test_accuracy_is_undefined_on_flat_truth():
+    # Amendment 2: a needle's test set can sit entirely on the flat background.
+    truth = np.full(100, 0.37) + np.r_[1e-17, np.zeros(99)]
+    out = metrics.accuracy(np.linspace(0, 1, 100), truth)
+    assert np.isnan(out['r2']) and np.isnan(out['spearman']) and np.isfinite(out['rmse'])
+    ok = metrics.accuracy(np.linspace(0, 1, 100), np.linspace(0, 1, 100))
+    assert ok['r2'] == pytest.approx(1.0) and ok['spearman'] == pytest.approx(1.0)

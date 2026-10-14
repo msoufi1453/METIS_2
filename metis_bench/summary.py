@@ -39,7 +39,7 @@ def _experiment_section(name, report):
     quality = report / 'surrogate_quality.csv'
     if quality.exists():
         q = pd.read_csv(quality)
-        lines += ['Surrogate quality, mean over guided rounds (held-out R2 / Spearman; coverage of nominal 80% and '
+        lines += ['Surrogate quality, median over guided rounds (held-out R2 / Spearman; coverage of nominal 80% and '
                   '95% intervals; calibration error; z_sd > 1 = overconfident):', '',
                   _md(q[[c for c in SURROGATE_COLUMNS if c in q]]), '']
     for table_name, title in (('ablation_subsets.csv', 'Ablation: mean paired difference per subset'),

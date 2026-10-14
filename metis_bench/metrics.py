@@ -79,8 +79,11 @@ def accuracy(pred_mean, truth):
     pred_mean, truth = np.asarray(pred_mean, float), np.asarray(truth, float)
     resid = truth - pred_mean
     ss_tot = float(np.sum((truth - truth.mean()) ** 2))
-    r2 = 1.0 - float(np.sum(resid ** 2)) / ss_tot if ss_tot > 0 else np.nan
-    rho = spearmanr(pred_mean, truth).statistic if np.ptp(truth) > 0 and np.ptp(pred_mean) > 0 else np.nan
+    # Amendment 2: R2 and rho are undefined when the truth is flat (e.g. a needle's test set
+    # sits entirely on its background); a rounding-level ss_tot would otherwise give R2 ~ -1e29.
+    flat = ss_tot <= 1e-12 * (float(np.sum(truth ** 2)) + 1e-300)
+    r2 = np.nan if flat else 1.0 - float(np.sum(resid ** 2)) / ss_tot
+    rho = spearmanr(pred_mean, truth).statistic if not flat and np.ptp(pred_mean) > 0 else np.nan
     return {'r2': r2, 'spearman': float(rho), 'rmse': float(np.sqrt(np.mean(resid ** 2)))}
 
 

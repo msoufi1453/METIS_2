@@ -63,7 +63,7 @@ def _plot_surrogate(rounds, path):
     fig, axes = plt.subplots(1, 4, figsize=(14, 3.4))
     for ax, (col, label) in zip(axes, panels):
         for arm, g in rounds.groupby('arm'):
-            s = g.groupby('round')[col].mean()
+            s = g.groupby('round')[col].median()
             ax.plot(s.index, s.values, marker='o', ms=3, label=arm)
         if col == 'test_cov80':
             ax.axhline(0.8, color='grey', ls='--', lw=1)
@@ -135,9 +135,11 @@ def write_report(cfg, exp_dir, n_boot=stats.N_BOOTSTRAP):
                   "Shapley shares of the full combination's improvement (they sum to its total improvement):", '',
                   _fmt(shap.round(4)) if not shap.empty else '(not all subsets present)', '']
     if not rounds.empty:
-        surr = rounds.groupby('arm')[list(SURROGATE_COLUMNS)].mean()
+        # Medians: one degenerate problem (e.g. a flat needle test set) must not dominate the table.
+        surr = rounds.groupby('arm')[list(SURROGATE_COLUMNS)].median()
         surr.to_csv(out / 'surrogate_quality.csv')
-        lines += ['## Surrogate quality (mean over guided rounds)', '', _fmt(surr.reset_index().round(3)), '']
+        lines += ['## Surrogate quality (median over problems, seeds and guided rounds)', '',
+                  _fmt(surr.reset_index().round(3)), '']
         _plot_surrogate(rounds, out / 'surrogate_quality.png')
     _plot_curves(curves, out / 'regret_curves.png', title=cfg['name'])
     _plot_curves(curves, out / 'rec_regret_curves.png', value='norm_rec_regret', title=cfg['name'])
