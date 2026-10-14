@@ -138,3 +138,6 @@ dmypy.json
 
 # Cython debug symbols
 cython_debug/
+# Benchmark artefacts (oracle caches, campaign results, reports)
+artifacts/
+results/

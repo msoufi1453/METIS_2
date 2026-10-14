@@ -52,12 +52,29 @@ class Selection:
 
 class BatchSelector:
     name = 'selector'
+    #: False for selectors that ignore the surrogate (the runner then skips fitting).
+    needs_model = True
 
     def select(self, ctx, k):
         raise NotImplementedError
 
     def describe(self):
         return {'name': self.name}
+
+
+class RandomSelector(BatchSelector):
+    """Uniformly random unmeasured candidates: the random-search baseline."""
+
+    name = 'random'
+    needs_model = False
+
+    def __init__(self, seed=0):
+        self.rng = np.random.default_rng(seed)
+
+    def select(self, ctx, k):
+        free = np.flatnonzero(~ctx.blocked) if ctx.blocked is not None else np.arange(len(ctx.candidates))
+        chosen = self.rng.choice(free, size=min(k, len(free)), replace=False)
+        return Selection(chosen.astype(np.int64), np.zeros(len(chosen)))
 
 
 class TopK(BatchSelector):
@@ -199,7 +216,11 @@ class LocalPenalization(BatchSelector):
                     break
                 mask[c] = True
             if i is None:
-                break
+                # Every remaining weight underflowed (e.g. a zero-spread ensemble): fall back
+                # to the best raw score so the batch is always full.
+                i = _best_available(np.where(mask, -np.inf, scores), ctx, set(chosen))
+                if i is None or mask[i]:
+                    break
             chosen.append(i)
             picked_scores.append(scores[i])
             mask[i] = True

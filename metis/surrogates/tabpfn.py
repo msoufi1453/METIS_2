@@ -19,6 +19,12 @@ class TabPFNSurrogate(Surrogate):
     are chunked to bound memory. TabPFN cannot take per-sample noise variances, so
     ``accepts_noise`` is False and replicate stds are ignored.
 
+    The std is the spread of TabPFN's predictive distribution for a *measurement*, so it
+    includes the noise TabPFN infers; it cannot be split into latent and noise parts.
+    Judged against noise-free truth (metis_bench calibration metrics), its intervals
+    therefore over-cover, while the GP reports latent std. Keep this in mind when
+    comparing calibration.
+
     The weights (``Prior-Labs/TabPFN-v2-reg``) download on first use; pass ``model_path``
     to use a local copy on an offline cluster.
     """

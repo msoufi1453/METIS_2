@@ -1,0 +1,8 @@
+{
+ "frozen_on": "2026-10-14",
+ "protocol": "docs/PREREGISTRATION.md",
+ "sha256": {
+  "metrics.py": "1d2ca92db3ab36147921a927d62dd410c622860ddaa3525cf3f00c2cf8a3e768",
+  "stats.py": "e72b73c7855547f2d6255a1bc83e4564aeb2065b9015c5d0d7c717e37754f2f1"
+ }
+}

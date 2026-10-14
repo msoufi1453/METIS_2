@@ -25,7 +25,21 @@ Pandi A*‡, Diehl C*, Yazdizadeh Kharrazi A, Scholz SA, Bobkova E, Faure L, Nat
 | `metis.space` | `DesignSpace`, the droplet grid as an explicit, vectorised space |
 | `metis.optimize` | `bayesian_optimization` / `batch_ucb` (v1 wrappers) and `suggest_combinations` (pluggable entry point) |
 
+| `metis.initialization` | Initial designs on the droplet grid: random (v1), scrambled Sobol, maximin LHS, fill-the-unsampled-region for imported data |
+| `metis.schedules` | Exploration schedules: v1 list, constant, linear/exponential decay, GP-UCB rate, adaptive |
+
 Environment: `uv sync --all-extras` creates the pinned environment from `uv.lock` (Python 3.11). `uv run pytest` runs the tests; `tests/test_regression_legacy.py` checks that one seeded METIS round reproduces the original output byte for byte.
+
+## Benchmark (`metis_bench`)
+A benchmark harness for improving METIS, with exact regret:
+
+* **Oracles**: gold-regressor oracles from the Borkowski cell-free data (Fig. 1b recipe; the exact maximum comes from enumerating all 4^11 grid recipes) and the PURE data. There is also a synthetic suite of 90 functions: 9 landscape subtypes x 5 calibrated specs x 12/27 factors. Each has an exact global maximum on its droplet grid under the volume budget.
+* **Calibration**: the same descriptors (yield distribution, Sobol split, ruggedness, thresholds, learnability, noise ratio) for every synthetic function and both real datasets. Each function gets a realism score and a place on a 2D map (`suite/`).
+* **Measurement layer**: triplicate wells, heteroscedastic noise fitted to Borkowski's replicates, outlier wells and plate (batch) effects.
+* **Campaign runner**: 32 recipes x 10 rounds, paired seeds, resumable, shardable for clusters.
+* **Preregistered** metrics and statistics ([docs/PREREGISTRATION.md](docs/PREREGISTRATION.md)), frozen by hash.
+
+The runbook is in [docs/BENCHMARK.md](docs/BENCHMARK.md).
 
 ## Guide
 * Apart from the two Google Colab notebooks above that can be tailored for custom applications, all example notebooks used in this work along with their data (combinations and yields) are provided in the Examples/Applications folder of the METIS repository. 

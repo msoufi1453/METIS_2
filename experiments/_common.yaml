@@ -1,0 +1,3 @@
+# Shared defaults, documented here for readers; each experiment file states its own values.
+# settings: {batch_size: 32, n_rounds: 10, pool_size: 10000, test_points: 1000}
+# seeds: [0, 50]   -> 50 paired seeds (0..49)

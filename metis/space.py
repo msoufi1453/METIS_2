@@ -285,8 +285,8 @@ class DesignSpace:
                 idx = idx[self.feasible(idx)]
             yield idx
 
-    def neighbors(self, row):
-        """Feasible points one step away: one level up or down, or a different alternative."""
+    def neighbors(self, row, feasible_only=True):
+        """Points one step away: one level up or down, or a different alternative."""
         row = np.asarray(row, dtype=np.int64)
         out = []
         for d, (_, kind) in enumerate(self.dims):
@@ -304,4 +304,4 @@ class DesignSpace:
                         nb[d] = v
                         out.append(nb)
         out = np.array(out, dtype=np.int64).reshape(-1, self.n_dims)
-        return out[self.feasible(out)]
+        return out[self.feasible(out)] if feasible_only else out

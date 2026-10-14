@@ -1,0 +1,19 @@
+# Sanity check against Figure 1b of Pandi et al. (2022): the Borkowski gold-regressor
+# oracle, 100 recipes per round for 10 rounds, the paper's exploration schedule and a
+# 20-member XGBoost ensemble, against random search. Descriptive only (no hypothesis
+# family): the guided arm should climb toward the oracle maximum while random search
+# stalls, as in the paper's figure.
+name: fig1b_check
+reference: random_search
+families:
+  descriptive: {reference: random_search, arms: [metis_v1]}
+problems: {real: [borkowski], noise: [realistic]}
+settings: {batch_size: 100, n_rounds: 10, pool_size: 100000, test_points: 1000}
+seeds: [0, 20]
+arms:
+  - {name: metis_v1}
+  - {name: random_search, selector: {type: random}}
+pilot:
+  seeds: [0, 4]
+  settings: {pool_size: 10000, test_points: 300}
+  arm_overrides: {xgb_ensemble: {n_iter: 15, ensemble_len: 20}}
