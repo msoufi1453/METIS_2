@@ -1,0 +1,24 @@
+# Step 12 / family F5: tuned vs untuned hyperparameters of the winning surrogate, both with
+# the Phase 2 winners and the tuned schedule, on the TEST split.
+name: phase3_hparams
+reference: untuned
+families:
+  F5: {reference: untuned, arms: [tuned]}
+base_arm: {from_winners: artifacts/winners.json}
+base_tuning: [artifacts/tuning/schedule.json]
+arms:
+  - {name: untuned}
+  - {name: tuned, from_tuning: artifacts/tuning/surrogate.json}
+problems:
+  suite: suite/suite.json
+  split: test
+  dims: [12, 27]
+  real: [borkowski, pure_pool]
+  noise: [realistic]
+settings: {batch_size: 32, n_rounds: 10, pool_size: 10000, test_points: 1000}
+seeds: [0, 50]
+pilot:
+  seeds: [0, 4]
+  settings: {pool_size: 2000, test_points: 300}
+  problems: {limit_per_subtype: 1, dims: [12], real: [borkowski]}
+  arm_overrides: {xgb_ensemble: {n_iter: 15, ensemble_len: 10}, gp_matern: {n_restarts: 0}, tabpfn: {n_estimators: 4}}

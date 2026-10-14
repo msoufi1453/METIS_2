@@ -1,0 +1,32 @@
+# Step 12: hyperparameters of the step 9 winner only (grid chosen by its type), on the DEV
+# split, with the tuned schedule. Winner -> artifacts/tuning/surrogate.json.
+name: phase3_hparams_tune
+tuning: {part: surrogate, output: artifacts/tuning/surrogate.json}
+base_arm: {from_winners: artifacts/winners.json}
+base_tuning: [artifacts/tuning/schedule.json]
+candidates_by_type:
+  gp_matern:
+    - {type: gp_matern, nu: [0.5, 1.5, 2.5], n_restarts: [2], length_scale_bounds: [[0.01, 100.0], [0.05, 20.0]], noise_bounds: [[1.0e-6, 1.0], [1.0e-4, 1.0]]}
+  xgb_ensemble:
+    - {type: xgb_ensemble, n_iter: [50, 200, 500], ensemble_len: [5, 10, 20, 40]}
+  tabpfn:
+    - {type: tabpfn, n_estimators: [4, 8, 16, 32]}
+problems:
+  suite: suite/suite.json
+  split: dev
+  dims: [12, 27]
+  noise: [realistic]
+settings: {batch_size: 32, n_rounds: 10, pool_size: 10000, test_points: 1000}
+seeds: [1000, 1020]
+pilot:
+  seeds: [1000, 1002]
+  settings: {pool_size: 2000, test_points: 300}
+  problems: {limit_per_subtype: 1, dims: [12]}
+  arm_overrides: {}
+  candidates_by_type:
+    gp_matern:
+      - {type: gp_matern, nu: [1.5, 2.5], n_restarts: [0]}
+    xgb_ensemble:
+      - {type: xgb_ensemble, n_iter: [15], ensemble_len: [5, 10]}
+    tabpfn:
+      - {type: tabpfn, n_estimators: [2, 4]}

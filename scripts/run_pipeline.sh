@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# Phase 2 -> decision -> Phase 3, in order. Each step needs the previous step's outputs.
+#
+#   scripts/run_pipeline.sh            # confirmatory (long: use a cluster, see docs/BENCHMARK.md)
+#   PILOT=1 JOBS=7 scripts/run_pipeline.sh   # machinery check on a laptop
+#
+# Finished campaigns are skipped, so the script can be re-run after an interruption.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+JOBS=${JOBS:-8}
+FLAG=""
+SUFFIX=""
+if [[ "${PILOT:-0}" == "1" ]]; then FLAG="--pilot"; SUFFIX="-pilot"; fi
+bench() { uv run --all-extras python -W ignore -m metis_bench "$@"; }
+
+for exp in phase2_init phase2_import phase2_surrogates phase2_batch; do
+  bench run "experiments/$exp.yaml" $FLAG --jobs "$JOBS"
+  bench report "experiments/$exp.yaml" $FLAG
+done
+
+DECIDE_FLAGS="$FLAG"
+# Pilots have too few seeds for significance; pick by mean so Phase 3 has something to run.
+if [[ "${PILOT:-0}" == "1" ]]; then DECIDE_FLAGS="$FLAG --ignore-significance"; fi
+bench decide $DECIDE_FLAGS \
+  "results/phase2_init$SUFFIX/report" "results/phase2_surrogates$SUFFIX/report" "results/phase2_batch$SUFFIX/report"
+
+bench tune experiments/phase3_schedule_tune.yaml $FLAG --jobs "$JOBS"
+bench run experiments/phase3_schedule.yaml $FLAG --jobs "$JOBS"
+bench report experiments/phase3_schedule.yaml $FLAG
+
+bench tune experiments/phase3_hparams_tune.yaml $FLAG --jobs "$JOBS"
+bench run experiments/phase3_hparams.yaml $FLAG --jobs "$JOBS"
+bench report experiments/phase3_hparams.yaml $FLAG
+
+bench run experiments/phase3_ablation.yaml $FLAG --jobs "$JOBS"
+bench report experiments/phase3_ablation.yaml $FLAG

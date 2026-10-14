@@ -1,0 +1,24 @@
+# Step 13 / family F6: full factorial over the winning interventions (Phase 2 winners plus
+# the tuned schedule and tuned surrogate hyperparameters): 2^k arms, the empty subset being
+# the incumbent. Report adds main effects, pairwise interactions and Shapley shares.
+# Primary analysis on realistic noise; none/high are robustness strata.
+name: phase3_ablation
+reference: incumbent
+arms:
+  ablation_of: artifacts/winners.json
+  tuning: [artifacts/tuning/schedule.json, artifacts/tuning/surrogate.json]
+problems:
+  suite: suite/suite.json
+  split: test
+  dims: [12, 27]
+  real: [borkowski, pure_pool]
+  noise: [realistic, none, high]
+settings: {batch_size: 32, n_rounds: 10, pool_size: 10000, test_points: 1000}
+seeds: [0, 50]
+pilot:
+  # Up to 2^5 = 32 arms: a few representative landscapes keep the pilot laptop-sized.
+  seeds: [0, 2]
+  settings: {pool_size: 2000, test_points: 300}
+  problems: {limit_per_subtype: 1, dims: [12], subtypes: [broad, switch_on, peaks, multiplicative], real: [borkowski],
+             noise: [realistic]}
+  arm_overrides: {xgb_ensemble: {n_iter: 15, ensemble_len: 10}, gp_matern: {n_restarts: 0}, tabpfn: {n_estimators: 4}}
