@@ -1,0 +1,24 @@
+# Step 8 / family F1b: campaigns that start from imported one-factor-at-a-time data.
+# import_v1 goes straight to model-guided rounds; import_fill spends round 1 filling the
+# region the imported data never sampled.
+name: phase2_import
+reference: import_v1
+families:
+  F1b: {reference: import_v1, arms: [import_fill]}
+problems:
+  suite: suite/suite.json
+  split: test
+  dims: [12, 27]
+  real: [borkowski]
+  noise: [realistic]
+  imported: {n: 32, kind: ofat}
+settings: {batch_size: 32, n_rounds: 10, pool_size: 10000, test_points: 1000}
+seeds: [0, 50]
+arms:
+  - {name: import_v1, init: {type: none}}
+  - {name: import_fill, init: {type: fill}}
+pilot:
+  seeds: [0, 4]
+  settings: {pool_size: 2000, test_points: 300}
+  problems: {limit_per_subtype: 1, dims: [12], real: [borkowski]}
+  arm_overrides: {xgb_ensemble: {n_iter: 15, ensemble_len: 10}}

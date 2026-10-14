@@ -1,0 +1,25 @@
+# Step 9 / family F2: surrogate. Report predictive accuracy and interval calibration
+# per round (rounds.csv, surrogate_quality.png) next to final regret.
+name: phase2_surrogates
+reference: incumbent
+families:
+  F2: {reference: incumbent, arms: [surr_gp, surr_tabpfn]}
+problems:
+  suite: suite/suite.json
+  split: test
+  dims: [12, 27]
+  real: [borkowski, pure_pool]
+  noise: [realistic]
+settings: {batch_size: 32, n_rounds: 10, pool_size: 10000, test_points: 1000}
+seeds: [0, 50]
+arms:
+  - {name: incumbent}
+  - {name: surr_gp, surrogate: {type: gp_matern, nu: 2.5, n_restarts: 2}}
+  - {name: surr_tabpfn, surrogate: {type: tabpfn, n_estimators: 8}}
+# TabPFN on CPU costs about 4 minutes per round single-threaded (320 training recipes,
+# 2,300 predictions, 4 estimators). The full study should run it with device: cuda.
+pilot:
+  seeds: [0, 2]
+  settings: {pool_size: 1000, test_points: 200}
+  problems: {limit_per_subtype: 1, dims: [12], real: [borkowski]}
+  arm_overrides: {xgb_ensemble: {n_iter: 15, ensemble_len: 10}, gp_matern: {n_restarts: 0}, tabpfn: {n_estimators: 1}}

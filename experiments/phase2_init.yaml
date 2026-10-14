@@ -1,0 +1,23 @@
+# Step 8 / family F1: initial design. Everything else is the METIS v1 incumbent.
+name: phase2_init
+reference: incumbent
+families:
+  F1: {reference: incumbent, arms: [init_sobol, init_lhs]}
+problems:
+  suite: suite/suite.json
+  split: test
+  dims: [12, 27]
+  real: [borkowski, pure_pool]
+  noise: [realistic]
+settings: {batch_size: 32, n_rounds: 10, pool_size: 10000, test_points: 1000}
+seeds: [0, 50]
+arms:
+  - {name: incumbent}
+  - {name: init_sobol, init: {type: sobol}}
+  - {name: init_lhs, init: {type: lhs_maximin}}
+  - {name: random_search, selector: {type: random}}   # descriptive floor, not in F1
+pilot:
+  seeds: [0, 4]
+  settings: {pool_size: 2000, test_points: 300}
+  problems: {limit_per_subtype: 1, dims: [12], real: [borkowski]}
+  arm_overrides: {xgb_ensemble: {n_iter: 15, ensemble_len: 10}}

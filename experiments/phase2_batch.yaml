@@ -1,0 +1,29 @@
+# Step 10 / families F3 and F3b: batch selection and replicate noise.
+# batch_fantasy = the v1 batch_ucb heuristic (kriging believer) generalised;
+# batch_lp = local penalisation with a 0.15 radius floor (preregistered);
+# noise_xgb = incumbent fitted with inverse-variance weights from the triplicate stds.
+name: phase2_batch
+reference: incumbent
+families:
+  F3: {reference: incumbent, arms: [batch_fantasy, batch_lp, noise_xgb]}
+  F3b: {reference: surr_gp, arms: [surr_gp_noise]}
+problems:
+  suite: suite/suite.json
+  split: test
+  dims: [12, 27]
+  real: [borkowski, pure_pool]
+  noise: [realistic]
+settings: {batch_size: 32, n_rounds: 10, pool_size: 10000, test_points: 1000}
+seeds: [0, 50]
+arms:
+  - {name: incumbent}
+  - {name: batch_fantasy, selector: {type: sequential_fantasy}}
+  - {name: batch_lp, selector: {type: local_penalization, min_radius: 0.15}}
+  - {name: noise_xgb, use_noise: true}
+  - {name: surr_gp, surrogate: {type: gp_matern}}
+  - {name: surr_gp_noise, surrogate: {type: gp_matern}, use_noise: true}
+pilot:
+  seeds: [0, 4]
+  settings: {pool_size: 2000, test_points: 300}
+  problems: {limit_per_subtype: 1, dims: [12], real: [borkowski]}
+  arm_overrides: {xgb_ensemble: {n_iter: 15, ensemble_len: 10}, gp_matern: {n_restarts: 0}}
