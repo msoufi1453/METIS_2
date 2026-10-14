@@ -39,7 +39,7 @@ A benchmark harness for improving METIS, with exact regret:
 * **Campaign runner**: 32 recipes x 10 rounds, paired seeds, resumable, shardable for clusters.
 * **Preregistered** metrics and statistics ([docs/PREREGISTRATION.md](docs/PREREGISTRATION.md)), frozen by hash.
 
-The runbook is in [docs/BENCHMARK.md](docs/BENCHMARK.md).
+The runbook is in [docs/BENCHMARK.md](docs/BENCHMARK.md). Laptop-scale pilot results, which check the machinery and are not confirmatory evidence, are in [docs/PILOT_RESULTS.md](docs/PILOT_RESULTS.md).
 
 ## Guide
 * Apart from the two Google Colab notebooks above that can be tailored for custom applications, all example notebooks used in this work along with their data (combinations and yields) are provided in the Examples/Applications folder of the METIS repository. 

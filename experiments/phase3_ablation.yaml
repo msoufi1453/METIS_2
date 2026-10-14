@@ -16,7 +16,9 @@ problems:
 settings: {batch_size: 32, n_rounds: 10, pool_size: 10000, test_points: 1000}
 seeds: [0, 50]
 pilot:
-  # Up to 2^5 = 32 arms: a few representative landscapes keep the pilot laptop-sized.
+  # 2^k arms grow fast: the pilot ablates only the parts with visible pilot signal and runs
+  # a few representative landscapes. The confirmatory ablation uses every winner.
+  ablation_only: [surrogate, batch, pool, schedule]
   seeds: [0, 2]
   settings: {pool_size: 2000, test_points: 300}
   problems: {limit_per_subtype: 1, dims: [12], subtypes: [broad, switch_on, peaks, multiplicative], real: [borkowski],

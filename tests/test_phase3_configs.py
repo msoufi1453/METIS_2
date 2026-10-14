@@ -61,3 +61,9 @@ def test_ablation_is_full_factorial(mock_outputs):
     full = next(a for a in cfg['arms'] if len(a['ablation_subset']) == 4)
     assert full['surrogate'] == {'type': 'gp_matern', 'nu': 1.5}   # tuned hyperparameters
     assert full['schedule']['type'] == 'linear' and full['use_noise'] is True
+
+
+def test_pilot_ablation_can_restrict_parts(mock_outputs):
+    cfg = experiments.load(ROOT / 'experiments/phase3_ablation.yaml', pilot=True)
+    assert set(cfg['interventions']) <= {'surrogate', 'batch', 'pool', 'schedule'}
+    assert len(cfg['arms']) == 2 ** len(cfg['interventions'])

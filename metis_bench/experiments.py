@@ -56,6 +56,8 @@ def _resolve_arms(cfg):
     arms = cfg.get('arms')
     if isinstance(arms, dict) and 'ablation_of' in arms:
         interventions = winner_interventions(arms['ablation_of'], arms.get('tuning', []))
+        if arms.get('only'):
+            interventions = {k: v for k, v in interventions.items() if k in arms['only']}
         cfg['interventions'] = sorted(interventions)
         cfg['arms'] = ablation.ablation_arms(interventions)
     resolved = []
@@ -91,6 +93,8 @@ def load(path, pilot=False):
         if isinstance(cfg.get('arms'), dict):
             cfg['arms'] = {k: (v.replace('.json', '-pilot.json') if isinstance(v, str) else
                                [x.replace('.json', '-pilot.json') for x in v]) for k, v in cfg['arms'].items()}
+            if over.get('ablation_only'):
+                cfg['arms']['only'] = over['ablation_only']
         cfg['base_tuning'] = [p.replace('.json', '-pilot.json') for p in cfg.get('base_tuning', [])]
         if 'from_winners' in (cfg.get('base_arm') or {}):
             cfg['base_arm']['from_winners'] = cfg['base_arm']['from_winners'].replace('.json', '-pilot.json')
