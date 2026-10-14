@@ -23,6 +23,10 @@ def main(argv=None):
     cal.add_argument('--per-subtype', type=int, default=5)
     cal.add_argument('--out', default='suite')
     cal.add_argument('--jobs', type=int, default=1)
+    summ = sub.add_parser('summary', help='one markdown overview of all experiment reports')
+    summ.add_argument('--pilot', action='store_true')
+    summ.add_argument('--results', default='results')
+    summ.add_argument('--out', default=None)
     dec = sub.add_parser('decide', help='apply the preregistered decision rule to Phase 2 reports')
     dec.add_argument('reports', nargs='+', help='report directories (results/<experiment>/report)')
     dec.add_argument('--pilot', action='store_true')
@@ -56,6 +60,12 @@ def main(argv=None):
         selected = C.select_suite(screened, refs, per_subtype=args.per_subtype)
         table = C.finalize_suite(selected, screened, refs, out, jobs=args.jobs)
         print(table.groupby(['landscape', 'n_dims']).realism.describe().round(3).to_string())
+        return 0
+
+    if args.command == 'summary':
+        from .summary import write_summary
+        out = args.out or ('results/SUMMARY-pilot.md' if args.pilot else 'results/SUMMARY.md')
+        print(write_summary(args.results, out, pilot=args.pilot))
         return 0
 
     if args.command == 'decide':

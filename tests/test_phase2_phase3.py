@@ -102,3 +102,20 @@ def test_experiment_files_load(name):
         cfg = experiments.load('experiments/{}.yaml'.format(name), pilot=pilot)
         assert cfg['arms'] and all('name' in a for a in cfg['arms'])
         assert cfg['name'].endswith('-pilot') == pilot
+
+
+def test_local_pool_is_valid_and_concentrates_near_the_best(space):
+    from metis.pools import LocalPool, RandomPool
+    rng = np.random.default_rng(3)
+    observed = space.sample(40, rng)
+    y = -np.linalg.norm(space.unit(observed) - 0.3, axis=1)
+    local = LocalPool(local_share=0.5).generate(space, 400, rng, observed, y)
+    rand = RandomPool().generate(space, 400, rng, observed, y)
+    for pool in (local, rand):
+        assert space.feasible(pool).all() and len(set(space.keys(pool))) == len(pool)
+        assert not set(space.keys(pool)) & set(space.keys(observed))
+    best = space.embedding(observed[np.argsort(y)[::-1][:8]])
+
+    def near(pool):
+        return np.mean(np.min(np.linalg.norm(space.embedding(pool)[:, None] - best[None], axis=2), axis=1) < 0.5)
+    assert near(local) > near(rand) + 0.3

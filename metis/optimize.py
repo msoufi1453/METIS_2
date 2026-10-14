@@ -181,13 +181,14 @@ def batch_ucb(regressors_list,
 
 def suggest_combinations(surrogate, data, label, concentrations_limits, test_size=20, acquisition=None,
                          selector=None, reaction_vol_nl=20000, max_nl=None, drop_size_nl=100, pool_size=10000,
-                         label_std=None, n_replicates=3, seed=None):
+                         label_std=None, n_replicates=3, seed=None, pool=None):
     """Notebook-level entry point with pluggable parts.
 
     Same inputs as ``bayesian_optimization`` (``data`` with the model columns, ``label``
     with a ``yield`` column), but any ``Surrogate``, ``Acquisition`` and
     ``BatchSelector`` can be plugged in. Candidates come from ``DesignSpace.sample``,
-    which never re-proposes measured combinations. ``label_std`` (e.g. the ``yield_std``
+    which never re-proposes measured combinations; ``pool`` (a ``metis.pools`` generator,
+    e.g. ``LocalPool()``) can add mutations of the best measured recipes. ``label_std`` (e.g. the ``yield_std``
     column of the Results files) is converted to the variance of the replicate mean and
     passed to surrogates that accept noise.
 
@@ -210,7 +211,8 @@ def suggest_combinations(surrogate, data, label, concentrations_limits, test_siz
     if hasattr(surrogate, 'input_transform') and surrogate.input_transform is None:
         surrogate.input_transform = space.feature_transform()
     rng = np.random.default_rng(seed)
-    pool_idx = space.sample(pool_size, rng, exclude=space.keys(space.from_features(X_obs)))
+    from .pools import RandomPool
+    pool_idx = (pool or RandomPool()).generate(space, pool_size, rng, space.from_features(X_obs), y_obs)
     result = suggest(surrogate, X_obs, y_obs, space.features(pool_idx), test_size, acquisition=acquisition,
                      selector=selector, noise_var=noise_var, embedding=space.embedding(pool_idx))
     chosen = space.frame(pool_idx[result.indices])

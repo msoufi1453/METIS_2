@@ -8,13 +8,14 @@ An arm is a plain dict, so it can live in YAML experiment files and be logged ve
     acquisition: {type: ucb, exploitation: 1.0}
     selector: {type: topk}
     schedule: {type: legacy}
+    pool: {type: random}    # where candidate recipes come from (metis.pools)
     use_noise: false        # feed replicate variances to the surrogate
 
 Missing keys take METIS v1 defaults (``INCUMBENT``).
 """
 import copy
 
-from metis import initialization, schedules
+from metis import initialization, pools, schedules
 from metis.acquisition import GPBUCB, UCB, ExpectedImprovement, LocalPenalization, RandomSelector, SequentialFantasy, TopK
 from metis.surrogates import GPSurrogate, TabPFNSurrogate, XGBEnsemble
 
@@ -25,6 +26,7 @@ INCUMBENT = {
     'acquisition': {'type': 'ucb', 'exploitation': 1.0},
     'selector': {'type': 'topk'},
     'schedule': {'type': 'legacy'},
+    'pool': {'type': 'random'},
     'use_noise': False,
 }
 
@@ -70,6 +72,10 @@ def make_selector(cfg, rng=None):
         return RandomSelector(seed=int(rng.integers(2 ** 31 - 1)) if rng is not None else 0)
     return {'topk': TopK, 'sequential_fantasy': SequentialFantasy, 'local_penalization': LocalPenalization,
             'gp_bucb': GPBUCB}[kind](**p)
+
+
+def make_pool(cfg):
+    return pools.make(cfg)
 
 
 def make_schedule(cfg):

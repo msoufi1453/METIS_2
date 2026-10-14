@@ -88,6 +88,7 @@ def run_campaign(problem_cfg, arm_cfg, seed, settings=None):
         first_guided = 2
 
     schedule = arm_lib.make_schedule(arm['schedule'])
+    pool_gen = arm_lib.make_pool(arm.get('pool'))
     selector = arm_lib.make_selector(arm['selector'], np.random.default_rng(s_model.spawn(1)[0]))
     use_noise = bool(arm.get('use_noise'))
     rounds_log = []
@@ -104,7 +105,7 @@ def run_campaign(problem_cfg, arm_cfg, seed, settings=None):
         if hasattr(acquisition, 'exploration'):
             exploration = float(schedule(r, settings.n_rounds, history))
             acquisition.exploration = exploration
-        pool = space.sample(settings.pool_size, pool_rngs[r], exclude=space.keys(observed))
+        pool = pool_gen.generate(space, settings.pool_size, pool_rngs[r], observed, y_obs)
         if len(pool) == 0:
             break
         if not selector.needs_model:

@@ -15,7 +15,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 
 PART_NAMES = {'init': 'init', 'surrogate': 'surrogate', 'selector': 'batch', 'use_noise': 'noise',
-              'schedule': 'schedule'}
+              'schedule': 'schedule', 'pool': 'pool'}
 
 
 def _read_json(path):

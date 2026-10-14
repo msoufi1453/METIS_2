@@ -75,7 +75,7 @@ def write_winner(path, cfg, winner_name, table):
     return path
 
 
-PARTS = ('init', 'surrogate', 'selector', 'schedule', 'use_noise')
+PARTS = ('init', 'surrogate', 'selector', 'schedule', 'pool', 'use_noise')
 
 
 def _differing_parts(arm, reference):

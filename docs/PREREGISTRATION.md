@@ -118,6 +118,7 @@ schedule, top-k, replicate stds ignored). Exact arm definitions are in `experime
 | F2 surrogate | `surr_gp`, `surr_tabpfn` | primary; accuracy and calibration secondary |
 | F3 batching and noise | `batch_fantasy` (v1 heuristic), `batch_lp` (local penalisation, radius floor 0.15), `noise_xgb` (replicate stds as XGB weights) | primary |
 | F3b noise feeding with GP | `surr_gp_noise` vs `surr_gp` | primary |
+| F3c candidate pool (amendment 1) | `pool_local` (half the pool from mutations of the 8 best measured recipes) | primary |
 | F4 schedule | best dev schedule vs the v1 schedule, both on top of the Phase 2 winners | primary |
 | F5 hyperparameters | tuned vs untuned winning surrogate, both with the Phase 2 winners and the tuned schedule | primary |
 | F6 ablation | every non-empty subset of the winning interventions vs `incumbent` | primary; main effects and interactions by linear model on paired differences; Shapley shares |
@@ -152,3 +153,4 @@ per-round accuracy and calibration curves.
 | Date | Change | Reason | New hashes |
 | --- | --- | --- | --- |
 | 2026-10-14 | Initial freeze | | see FROZEN.json |
+| 2026-10-14 | Amendment 1: family F3c, candidate pools (`pool_local` vs `incumbent`); `pool` added as an intervention part for the decision rule and the ablation | The Phase 2 pilot showed every arm plateauing at the best recipe its random candidate pools contained: on a 12-factor function, 100,000 random recipes reach about 85% of the optimum, while local moves from the best reach 98%. Added before any confirmatory campaign; metrics and statistics unchanged | unchanged |
