@@ -14,6 +14,19 @@ Pandi A*‡, Diehl C*, Yazdizadeh Kharrazi A, Scholz SA, Bobkova E, Faure L, Nat
 
 
 
+## Package layout (this fork)
+`utils.py` is now a thin shim over the `metis` package, so `from utils import *` in every notebook keeps working with the same function signatures. Run notebooks locally from the repository root (or `pip install -e .`), since the shim imports `metis`.
+
+| Module | Contents |
+| --- | --- |
+| `metis.design`, `metis.io`, `metis.echo` | The v1 functions (grids, random designs, volumes, Results files, Echo plate layouts) |
+| `metis.surrogates` | Pluggable surrogates: `fit(X, y, noise_var=None)` / `predict(X) -> (mean, std)`. `XGBEnsemble` (the incumbent), `RegressorEnsemble`, `GPSurrogate` (Matern), `TabPFNSurrogate` |
+| `metis.acquisition` | Pluggable acquisition: `UCB`, `ExpectedImprovement`, and batch selectors `TopK`, `SequentialFantasy`, `LocalPenalization`, `GPBUCB` |
+| `metis.space` | `DesignSpace`, the droplet grid as an explicit, vectorised space |
+| `metis.optimize` | `bayesian_optimization` / `batch_ucb` (v1 wrappers) and `suggest_combinations` (pluggable entry point) |
+
+Environment: `uv sync --all-extras` creates the pinned environment from `uv.lock` (Python 3.11). `uv run pytest` runs the tests; `tests/test_regression_legacy.py` checks that one seeded METIS round reproduces the original output byte for byte.
+
 ## Guide
 * Apart from the two Google Colab notebooks above that can be tailored for custom applications, all example notebooks used in this work along with their data (combinations and yields) are provided in the Examples/Applications folder of the METIS repository. 
 

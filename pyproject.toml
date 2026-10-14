@@ -1,0 +1,45 @@
+[project]
+name = "metis-bo"
+version = "0.2.0"
+description = "METIS active-learning workflow as a package with pluggable surrogates and acquisitions, plus a benchmark harness."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = "==3.11.*"
+# Exact pins: the seeded regression test (tests/test_regression_legacy.py) is only
+# meaningful inside this environment. uv.lock pins every transitive dependency.
+dependencies = [
+    "numpy==2.2.6",
+    "pandas==2.2.3",
+    "scipy==1.15.3",
+    "scikit-learn==1.6.1",
+    "xgboost==2.1.4",
+    "matplotlib==3.10.3",
+    "seaborn==0.13.2",
+    "xlrd==2.0.1",
+    "pyyaml==6.0.2",
+]
+
+[project.optional-dependencies]
+# tabpfn 2.0.x uses the public (ungated) TabPFN-v2 regressor weights on HuggingFace.
+tabpfn = ["tabpfn==2.0.9", "torch==2.7.1"]
+
+[dependency-groups]
+dev = ["pytest==8.3.5", "nbformat==5.10.4"]
+
+[build-system]
+requires = ["hatchling==1.27.0"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["metis", "metis_bench"]
+
+[tool.uv]
+default-groups = ["dev"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "slow: long-running tests (deselect with -m 'not slow')",
+    "tabpfn: needs the optional TabPFN install and its weights",
+]
+filterwarnings = ["ignore::FutureWarning", "ignore::DeprecationWarning"]

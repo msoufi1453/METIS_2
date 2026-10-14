@@ -1,0 +1,4 @@
+,PEG,DTT,Spermidine,T7Pol,t-RNA,AminoAcids,TF-plasmid,Circuit-plasmid,Circuit-plasmid_pTAC,Circuit-plasmid_pTHS,Circuit-plasmid_pDC,Circuit-plasmid_pSTAR
+220,2.5,1.0,1.2,0.0507,0.04,0.75,80.0,10.0,0.0,1.0,0.0,0.0
+179,3.0,0.0,1.0,0.0624,0.04,0.75,100.0,10.0,0.0,1.0,0.0,0.0
+154,4.5,2.0,1.2,0.078,0.04,0.75,100.0,10.0,0.0,1.0,0.0,0.0
