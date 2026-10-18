@@ -12,7 +12,8 @@ JOBS=${JOBS:-8}
 FLAG=""
 SUFFIX=""
 if [[ "${PILOT:-0}" == "1" ]]; then FLAG="--pilot"; SUFFIX="-pilot"; fi
-bench() { uv run --all-extras python -W ignore -m metis_bench "$@"; }
+# TORCH=cpu (default), cu126 or cu128 picks the PyTorch build for the TabPFN arm.
+bench() { uv run --extra tabpfn --extra "${TORCH:-cpu}" python -W ignore -m metis_bench "$@"; }
 
 for exp in phase2_init phase2_import phase2_surrogates phase2_batch; do
   bench run "experiments/$exp.yaml" $FLAG --jobs "$JOBS"

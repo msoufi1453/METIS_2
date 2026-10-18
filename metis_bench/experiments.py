@@ -6,6 +6,7 @@ Pilot mode (``--pilot``) applies the file's ``pilot`` overrides and writes to
 import copy
 import json
 import pathlib
+import zlib
 
 import yaml
 
@@ -116,6 +117,26 @@ def load_suite(path):
     return json.loads(path.read_text())['functions']
 
 
+def stratified_sample(functions, n):
+    """``n`` functions spread evenly over (landscape subtype, dimension) strata.
+
+    Round-robin over the strata in sorted order, taking one function per stratum per
+    pass, so every stratum is represented before any gets a second. Within a stratum the
+    order is a fixed hash of the function id: neutral with respect to realism and the
+    selection reason, and identical on every machine.
+    """
+    strata = {}
+    for f in functions:
+        strata.setdefault((f['spec']['subtype'], f['n_dims']), []).append(f)
+    queues = [sorted(group, key=lambda f: zlib.crc32(f['function_id'].encode())) for _, group in sorted(strata.items())]
+    chosen = []
+    while len(chosen) < n and any(queues):
+        for queue in queues:
+            if queue and len(chosen) < n:
+                chosen.append(queue.pop(0))
+    return chosen
+
+
 def problem_configs(cfg):
     p = cfg['problems']
     out = []
@@ -127,6 +148,8 @@ def problem_configs(cfg):
         functions = [f for f in functions if f['n_dims'] in p.get('dims', [12, 27])]
         if p.get('subtypes'):
             functions = [f for f in functions if f['spec']['subtype'] in p['subtypes']]
+        if p.get('stratified_sample'):
+            functions = stratified_sample(functions, int(p['stratified_sample']))
         if p.get('limit_per_subtype'):
             kept, counts = [], {}
             for f in sorted(functions, key=lambda f: f['realism']):

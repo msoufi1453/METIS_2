@@ -33,8 +33,9 @@ are never used for confirmatory claims or to choose between arms.
   maximum by full enumeration of 4^11 recipes) and `pure_pool` (gold XGBoost on 1,094
   PURE recipes; candidates are the measured recipes; exact maximum over the pool).
   `pure_grid` has no proven maximum and is excluded from confirmatory analysis.
-* **Noise presets** (`metis_bench/noise.py`): `realistic` is primary. `none` and `high`
-  are robustness analyses. Triplicate wells in every case.
+* **Noise presets** (`metis_bench/noise.py`): `realistic` is used for every
+  confirmatory experiment, including the ablation (amendment 3). `none` and `high` remain
+  available for exploratory robustness checks. Triplicate wells in every case.
 
 ### 2.1 Calibration and realism
 
@@ -67,7 +68,8 @@ which are never used for tuning.
   settings as the ensemble.
 * Exploration: UCB `1 * mean + beta * std`, with the v1 schedule beta = 1.41 for rounds
   2 and 3, 1.0 for rounds 4 to 7, and 0.5 for rounds 8 to 10 unless the arm says otherwise.
-* **Seeds**: 50 per (problem, arm), seeds 0 to 49. A seed fixes the initial design (per
+* **Seeds**: 20 per (problem, arm), seeds 0 to 19 (amendment 3; was 50). Tuning uses
+  10 seeds, 1000 to 1009 (was 20). A seed fixes the initial design (per
   initialiser type), the imported data, and every noise draw, so arms are paired
   (common random numbers).
 * Imported-data scenario (H1 fill): 32 one-factor-at-a-time recipes around two base
@@ -121,7 +123,7 @@ schedule, top-k, replicate stds ignored). Exact arm definitions are in `experime
 | F3c candidate pool (amendment 1) | `pool_local` (half the pool from mutations of the 8 best measured recipes) | primary |
 | F4 schedule | best dev schedule vs the v1 schedule, both on top of the Phase 2 winners | primary |
 | F5 hyperparameters | tuned vs untuned winning surrogate, both with the Phase 2 winners and the tuned schedule | primary |
-| F6 ablation | every non-empty subset of the winning interventions vs `incumbent` | primary; main effects and interactions by linear model on paired differences; Shapley shares |
+| F6 ablation | every non-empty subset of the winning interventions vs `incumbent`, on 30 problems (28 test functions sampled evenly over subtype x dimension, plus both real oracles), realistic noise (amendment 3) | primary; main effects and interactions by linear model on paired differences; Shapley shares |
 
 Descriptive baselines, outside every family and never tested: `random_search` in
 `phase2_init` (the floor any model-guided arm should clear), and `fig1b_check` (the
@@ -155,3 +157,4 @@ per-round accuracy and calibration curves.
 | 2026-10-14 | Initial freeze | | see FROZEN.json |
 | 2026-10-14 | Amendment 1: family F3c, candidate pools (`pool_local` vs `incumbent`); `pool` added as an intervention part for the decision rule and the ablation | The Phase 2 pilot showed every arm plateauing at the best recipe its random candidate pools contained: on a 12-factor function, 100,000 random recipes reach about 85% of the optimum, while local moves from the best reach 98%. Added before any confirmatory campaign; metrics and statistics unchanged | unchanged |
 | 2026-10-14 | Amendment 2: `metrics.accuracy` returns NaN for R2 and Spearman when the noise-free test truth is flat (sum of squares <= 1e-12 x sum of squared values) | Needle test sets sit entirely on the flat background; a rounding-level denominator gave R2 near -1e29 in the pilot. Secondary surrogate metric only; no confirmatory data existed | metrics.py 0b35edd53939... (FROZEN.json) |
+| 2026-10-18 | Amendment 3: compute budget. (a) 20 paired seeds per (problem, arm) instead of 50; (b) tuning: 10 seeds instead of 20, and 15 schedule candidates instead of 41 (at least one per family); (c) ablation: realistic noise only (was realistic, none and high) and 30 problems (28 test functions stratified over subtype x dimension by a fixed hash, plus both real oracles) instead of 56; (d) identical campaigns (same resolved arm, problem, seed and settings) are computed once and shared between experiments; (e) the TabPFN arm keeps full coverage (all 56 problems x 20 seeds) and may run on a GPU; (f) `incumbent_check` in phase3_schedule resets the candidate pool to random, so it is the true v1 incumbent | The full design was about 19,000 core-hours (most of it the ablation at three noise levels). The amended design is about 2,700 core-hours plus the TabPFN arm. The main test treats problems (56) as the unit, so fewer seeds mainly widens per-problem averages and does not bias paired comparisons. (d) and (f) do not change any result. Made before any confirmatory campaign | unchanged |

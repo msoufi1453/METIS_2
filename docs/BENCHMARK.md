@@ -3,7 +3,8 @@
 Everything runs from the repository root in the pinned environment:
 
 ```bash
-uv sync --all-extras
+uv sync --extra tabpfn --extra cpu      # CPU machines
+uv sync --extra tabpfn --extra cu126    # NVIDIA GPU up to RTX 40 series (cu128 for RTX 50)
 ```
 
 The protocol, metrics and statistics are fixed in [PREREGISTRATION.md](PREREGISTRATION.md).
@@ -11,7 +12,7 @@ The protocol, metrics and statistics are fixed in [PREREGISTRATION.md](PREREGIST
 ## 0. Guards
 
 ```bash
-uv run --all-extras pytest
+uv run --extra tabpfn --extra cpu pytest
 ```
 
 * `tests/test_regression_legacy.py`: one seeded METIS round reproduces the v1 output byte
@@ -23,8 +24,8 @@ uv run --all-extras pytest
 ## 1. Oracles and calibration (Phase 1)
 
 ```bash
-uv run --all-extras python -m metis_bench oracles      # gold regressors, cached in artifacts/oracles/
-uv run --all-extras python -m metis_bench calibrate    # real + synthetic descriptors, suite selection
+uv run --extra tabpfn --extra cpu python -m metis_bench oracles      # gold regressors, cached in artifacts/oracles/
+uv run --extra tabpfn --extra cpu python -m metis_bench calibrate    # real + synthetic descriptors, suite selection
 ```
 
 `calibrate` writes `suite/`:
@@ -43,8 +44,8 @@ Each experiment file in `experiments/` defines the problems, arms and comparison
 families. The same commands serve every phase:
 
 ```bash
-uv run --all-extras python -m metis_bench run    experiments/phase2_surrogates.yaml --jobs 8
-uv run --all-extras python -m metis_bench report experiments/phase2_surrogates.yaml
+uv run --extra tabpfn --extra cpu python -m metis_bench run    experiments/phase2_surrogates.yaml --jobs 8
+uv run --extra tabpfn --extra cpu python -m metis_bench report experiments/phase2_surrogates.yaml
 ```
 
 * `--pilot` applies the file's `pilot` block (few problems and seeds, cheaper incumbent
@@ -73,7 +74,7 @@ run    experiments/phase3_hparams.yaml;   report experiments/phase3_hparams.yaml
 run    experiments/phase3_ablation.yaml;  report experiments/phase3_ablation.yaml
 ```
 
-(prefix each line with `uv run --all-extras python -m metis_bench`).
+(prefix each line with `uv run --extra tabpfn --extra cpu python -m metis_bench`).
 
 ## 3. Reading a report
 
@@ -93,13 +94,43 @@ result can be reweighted or filtered by realism.
 
 ## 4. Compute
 
-One confirmatory campaign with the full incumbent (RandomizedSearchCV, 200 draws x 5 folds
-per round) takes about 5 to 10 CPU-minutes. GP campaigns take about 1 minute. TabPFN on
-CPU is the expensive arm: about 4 minutes per round single-threaded (320 training recipes,
-2,300 predictions, 4 estimators), so about 40 minutes per campaign. Run it on GPUs
-(`surrogate: {type: tabpfn, device: cuda}`). With 64 test-split problems x 50 seeds, each arm is roughly
-3,200 campaigns, so Phase 2 alone is several thousand CPU-hours: run it on a cluster with
-`--shard`. Pilots (`--pilot`) finish in about an hour on 8 cores.
+Per-campaign cost (estimates; only the pilot settings were timed): the full incumbent
+(RandomizedSearchCV, 200 draws x 5 folds every round) about 8 CPU-minutes, XGBoost with
+fantasy batches about 16, the GP about 1.5, TabPFN on CPU about 40 (single-threaded). The
+confirmatory design after amendment 3 (20 seeds, 56 test problems, shared identical
+campaigns, a smaller tuning grid, a 30-problem realistic-noise ablation) is roughly
+2,700 laptop-core-hours, plus the TabPFN arm (1,120 campaigns) on a GPU.
+
+Time one full-fidelity incumbent campaign on the target hardware before trusting these
+numbers: everything else scales from it.
+
+**Identical campaigns run once.** A campaign's result depends only on its resolved arm,
+problem, seed and settings, never on the experiment or the arm's name. Results are
+stored under `results/_shared/` and copied into every experiment that needs the same
+campaign (for example the incumbent, which appears in four experiment files). Bump
+`SHARED_VERSION` in `metis_bench/campaign.py` if campaign logic changes, so stale results
+are not reused.
+
+**TabPFN on a separate GPU machine.** The TabPFN arm is the only one that uses a GPU.
+Run it alone there and everything else on CPU workers, then copy the result folders
+together before `report`:
+
+```bash
+# GPU machine (NVIDIA up to RTX 40 series; use cu128 for RTX 50 series)
+uv sync --extra tabpfn --extra cu126
+uv run --extra tabpfn --extra cu126 python -m metis_bench oracles
+uv run --extra tabpfn --extra cu126 python -m metis_bench run experiments/phase2_surrogates.yaml --arms surr_tabpfn --jobs 2
+
+# CPU workers
+uv run --extra tabpfn --extra cpu python -m metis_bench run experiments/phase2_surrogates.yaml --skip-arms surr_tabpfn --jobs 8
+
+# then copy results/phase2_surrogates/ from both machines into one folder and run `report`
+```
+
+Check the GPU is used: `uv run --extra tabpfn --extra cu126 python -c "import torch; print(torch.cuda.is_available())"`
+should print `True`. Several TabPFN workers can share one GPU if its memory allows (start
+with `--jobs 2` and watch `nvidia-smi`). If TabPFN wins Phase 2, the Phase 3 arms that
+use it need the GPU machine too.
 
 ## 5. Extending
 

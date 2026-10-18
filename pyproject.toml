@@ -23,6 +23,14 @@ dependencies = [
 [project.optional-dependencies]
 # tabpfn 2.0.x uses the public (ungated) TabPFN-v2 regressor weights on HuggingFace.
 tabpfn = ["tabpfn==2.0.9", "torch==2.7.1"]
+# Pick exactly one PyTorch build with the TabPFN extra:
+#   cpu   - any machine (the default for CPU-only workers)
+#   cu126 - NVIDIA GPUs up to the RTX 40 series (driver >= 528)
+#   cu128 - NVIDIA RTX 50 series (Blackwell; driver >= 570)
+# e.g. `uv sync --extra tabpfn --extra cu126`
+cpu = ["torch==2.7.1"]
+cu126 = ["torch==2.7.1"]
+cu128 = ["torch==2.7.1"]
 
 [dependency-groups]
 dev = ["pytest==8.3.5", "nbformat==5.10.4"]
@@ -36,6 +44,29 @@ packages = ["metis", "metis_bench"]
 
 [tool.uv]
 default-groups = ["dev"]
+conflicts = [[{ extra = "cpu" }, { extra = "cu126" }, { extra = "cu128" }]]
+
+[tool.uv.sources]
+torch = [
+    { index = "pytorch-cpu", extra = "cpu" },
+    { index = "pytorch-cu126", extra = "cu126" },
+    { index = "pytorch-cu128", extra = "cu128" },
+]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cu126"
+url = "https://download.pytorch.org/whl/cu126"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

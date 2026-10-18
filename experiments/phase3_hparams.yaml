@@ -16,7 +16,7 @@ problems:
   real: [borkowski, pure_pool]
   noise: [realistic]
 settings: {batch_size: 32, n_rounds: 10, pool_size: 10000, test_points: 1000}
-seeds: [0, 50]
+seeds: [0, 20]   # amendment 3: 20 paired seeds (was 50)
 pilot:
   seeds: [0, 4]
   settings: {pool_size: 2000, test_points: 300}

@@ -35,7 +35,7 @@ def mock_outputs(tmp_path, monkeypatch):
 def test_schedule_tuning_builds_on_winners(mock_outputs, pilot):
     cfg = experiments.load(ROOT / 'experiments/phase3_schedule_tune.yaml', pilot=pilot)
     assert all(a['surrogate']['type'] == 'gp_matern' and a['use_noise'] for a in cfg['arms'])
-    assert len({a['name'] for a in cfg['arms']}) == len(cfg['arms']) == (6 if pilot else 41)
+    assert len({a['name'] for a in cfg['arms']}) == len(cfg["arms"]) == (6 if pilot else 15)
 
 
 @pytest.mark.parametrize('pilot', [False, True])

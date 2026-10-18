@@ -15,7 +15,7 @@ problems:
   real: [borkowski, pure_pool]
   noise: [realistic]
 settings: {batch_size: 32, n_rounds: 10, pool_size: 10000, test_points: 1000}
-seeds: [0, 50]
+seeds: [0, 20]   # amendment 3: 20 paired seeds (was 50)
 arms:
   - {name: incumbent}
   - {name: batch_fantasy, selector: {type: sequential_fantasy}}

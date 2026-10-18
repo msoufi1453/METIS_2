@@ -5,6 +5,7 @@
     python -m metis_bench run experiments/phase2_surrogates.yaml --jobs 8 [--pilot]
     python -m metis_bench report experiments/phase2_surrogates.yaml [--pilot]
     python -m metis_bench tasks experiments/phase2_surrogates.yaml --shard 3/40   # list one shard (for clusters)
+    python -m metis_bench run experiments/phase2_surrogates.yaml --arms surr_tabpfn  # one arm only (e.g. on a GPU)
 """
 import argparse
 import json
@@ -40,6 +41,8 @@ def main(argv=None):
         p.add_argument('--out', default='results')
         p.add_argument('--jobs', type=int, default=1)
         p.add_argument('--shard', default=None, help='i/n: run only every n-th task starting at i (0-based)')
+        p.add_argument('--arms', default=None, help='comma-separated arm names to run (others skipped)')
+        p.add_argument('--skip-arms', default=None, help='comma-separated arm names to leave out')
     args = parser.parse_args(argv)
 
     if args.command == 'oracles':
@@ -83,6 +86,15 @@ def main(argv=None):
         print(write_report(cfg, pathlib.Path(args.out) / cfg['name']))
         return 0
     tasks = experiments.tasks(cfg, args.out)
+    # Split an experiment across machines by arm, e.g. TabPFN on a GPU laptop and the rest
+    # on CPU workers; results land in the same layout, so copying the folders together
+    # before `report` is all the merging needed.
+    if args.arms:
+        keep = set(args.arms.split(','))
+        tasks = [t for t in tasks if t[1]['name'] in keep]
+    if args.skip_arms:
+        drop = set(args.skip_arms.split(','))
+        tasks = [t for t in tasks if t[1]['name'] not in drop]
     if args.shard:
         i, n = map(int, args.shard.split('/'))
         tasks = tasks[i::n]

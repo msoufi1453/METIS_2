@@ -11,11 +11,13 @@ problems:
   real: [borkowski, pure_pool]
   noise: [realistic]
 settings: {batch_size: 32, n_rounds: 10, pool_size: 10000, test_points: 1000}
-seeds: [0, 50]
+seeds: [0, 20]   # amendment 3: 20 paired seeds (was 50)
 arms:
   - {name: incumbent}
   - {name: surr_gp, surrogate: {type: gp_matern, nu: 2.5, n_restarts: 2}}
-  - {name: surr_tabpfn, surrogate: {type: tabpfn, n_estimators: 8}}
+  # device: auto uses a CUDA GPU when one is present (install with --extra cu126 or cu128),
+  # otherwise the CPU. Run this arm alone on a GPU machine with `--arms surr_tabpfn`.
+  - {name: surr_tabpfn, surrogate: {type: tabpfn, n_estimators: 8, device: auto}}
 # TabPFN on CPU costs about 4 minutes per round single-threaded (320 training recipes,
 # 2,300 predictions, 4 estimators). The full study should run it with device: cuda.
 pilot:

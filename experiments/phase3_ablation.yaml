@@ -1,7 +1,8 @@
 # Step 13 / family F6: full factorial over the winning interventions (Phase 2 winners plus
 # the tuned schedule and tuned surrogate hyperparameters): 2^k arms, the empty subset being
 # the incumbent. Report adds main effects, pairwise interactions and Shapley shares.
-# Primary analysis on realistic noise; none/high are robustness strata.
+# Amendment 3: realistic noise only, 28 test functions sampled evenly over landscape
+# subtype x dimension plus both real oracles (30 problems), 20 seeds.
 name: phase3_ablation
 reference: incumbent
 arms:
@@ -11,10 +12,11 @@ problems:
   suite: suite/suite.json
   split: test
   dims: [12, 27]
+  stratified_sample: 28
   real: [borkowski, pure_pool]
-  noise: [realistic, none, high]
+  noise: [realistic]
 settings: {batch_size: 32, n_rounds: 10, pool_size: 10000, test_points: 1000}
-seeds: [0, 50]
+seeds: [0, 20]
 pilot:
   # 2^k arms grow fast: the pilot ablates only the parts with visible pilot signal and runs
   # a few representative landscapes. The confirmatory ablation uses every winner.

@@ -17,7 +17,7 @@ problems:
   dims: [12, 27]
   noise: [realistic]
 settings: {batch_size: 32, n_rounds: 10, pool_size: 10000, test_points: 1000}
-seeds: [1000, 1020]
+seeds: [1000, 1010]   # amendment 3: 10 tuning seeds (was 20)
 pilot:
   seeds: [1000, 1002]
   settings: {pool_size: 2000, test_points: 300}

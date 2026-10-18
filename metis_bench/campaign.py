@@ -12,6 +12,7 @@ initialisers that share a type, the imported data, and every noise draw (plate e
 and per-well noise are drawn per round in a fixed order). Paired arms therefore differ
 only through the recipes they choose.
 """
+import hashlib
 import json
 import os
 import pathlib
@@ -158,14 +159,62 @@ def result_path(out_dir, experiment, problem_id, arm_name, seed):
     return pathlib.Path(out_dir) / _slug(experiment) / _slug(problem_id) / _slug(arm_name) / 'seed_{:03d}.json'.format(seed)
 
 
-def _worker(task):
+# Bump when campaign logic changes in a way that alters results, so old shared results
+# are not reused.
+SHARED_VERSION = 1
+
+
+def task_key(task):
+    """Identity of a campaign, independent of the experiment and the arm's name.
+
+    Two tasks with the same resolved arm, problem, seed and settings produce the same
+    result (every random draw derives from the seed and the problem), so it is computed
+    once and shared, e.g. the incumbent that appears in several Phase 2 and 3 files.
+    """
+    problem_cfg, arm_cfg, seed, settings, _ = task
+    arm = arm_lib.resolve(arm_cfg)
+    arm.pop('name', None)
+    arm.pop('ablation_subset', None)
+    problem = {k: v for k, v in problem_cfg.items() if k != 'labels'}
+    blob = json.dumps({'arm': arm, 'problem': problem, 'seed': seed, 'settings': settings,
+                       'version': SHARED_VERSION}, sort_keys=True, default=str)
+    return hashlib.sha256(blob.encode()).hexdigest()[:24]
+
+
+def shared_path(task, key):
+    """``<results>/_shared/ab/<key>.json``; ``<results>`` is three levels above the task file."""
+    return pathlib.Path(task[4]).parents[3] / '_shared' / key[:2] / '{}.json'.format(key)
+
+
+def _write_json(path, payload):
+    path = pathlib.Path(path)
+    tmp = pathlib.Path(str(path) + '.tmp')
+    tmp.parent.mkdir(parents=True, exist_ok=True)
+    tmp.write_text(json.dumps(payload, default=_jsonable))
+    os.replace(tmp, path)
+
+
+def _materialize(task, source):
+    """Copy a shared result into the task's own file, under the task's arm name and labels."""
+    problem_cfg, arm_cfg, _, _, path = task
+    result = json.loads(pathlib.Path(source).read_text())
+    result['arm_name'] = arm_cfg['name']
+    result['arm'] = {**result['arm'], 'name': arm_cfg['name']}
+    if 'ablation_subset' in arm_cfg:
+        result['arm']['ablation_subset'] = arm_cfg['ablation_subset']
+    result['problem'] = {**result['problem'], **(problem_cfg.get('labels') or {})}
+    result['shared_key'] = pathlib.Path(source).stem
+    _write_json(path, result)
+
+
+def _worker(job):
+    task, key = job
     problem_cfg, arm_cfg, seed, settings, path = task
     try:
         result = run_campaign(problem_cfg, arm_cfg, seed, Settings(**settings))
-        tmp = pathlib.Path(str(path) + '.tmp')
-        tmp.parent.mkdir(parents=True, exist_ok=True)
-        tmp.write_text(json.dumps(result, default=_jsonable))
-        os.replace(tmp, path)
+        source = shared_path(task, key)
+        _write_json(source, result)
+        _materialize(task, source)
         return path, None, result['elapsed_s']
     except Exception:  # keep the experiment going; the failure is reported and logged
         return path, traceback.format_exc(), None
@@ -189,21 +238,43 @@ def _limit_threads():
 
 
 def run_tasks(tasks, jobs=1, progress=print):
-    """Run (problem_cfg, arm_cfg, seed, settings_dict, path) tasks; skips finished ones."""
+    """Run (problem_cfg, arm_cfg, seed, settings_dict, path) tasks.
+
+    Skips tasks whose file exists, copies tasks whose identical campaign was already
+    computed (by any experiment, see ``task_key``), and computes each remaining distinct
+    campaign once.
+    """
     todo = [t for t in tasks if not pathlib.Path(t[4]).exists()]
-    progress('{} tasks, {} already done, {} to run with {} job(s)'.format(len(tasks), len(tasks) - len(todo), len(todo), jobs))
+    groups, reused = {}, 0
+    for task in todo:
+        key = task_key(task)
+        source = shared_path(task, key)
+        if source.exists():
+            _materialize(task, source)
+            reused += 1
+        else:
+            groups.setdefault(key, []).append(task)
+    jobs_list = [(group[0], key) for key, group in groups.items()]
+    progress('{} tasks: {} already done, {} reused from identical campaigns, {} distinct campaigns to run with {} '
+             'job(s)'.format(len(tasks), len(tasks) - len(todo), reused, len(jobs_list), jobs))
     failures = []
+
+    def finish(i, job, outcome):
+        path, error, elapsed = outcome
+        if error:
+            failures.append((path, error))
+        else:
+            for twin in groups[job[1]][1:]:
+                _materialize(twin, shared_path(twin, job[1]))
+        progress('[{}/{}] {} {}'.format(i, len(jobs_list), 'FAILED' if error else '{:.1f}s'.format(elapsed), path))
+
     if jobs <= 1:
-        for i, task in enumerate(todo, 1):
-            path, error, elapsed = _worker(task)
-            failures += [(path, error)] if error else []
-            progress('[{}/{}] {} {}'.format(i, len(todo), 'FAILED' if error else '{:.1f}s'.format(elapsed), path))
+        for i, job in enumerate(jobs_list, 1):
+            finish(i, job, _worker(job))
         return failures
     _limit_threads()
     with ProcessPoolExecutor(max_workers=jobs) as pool:
-        futures = [pool.submit(_worker, t) for t in todo]
+        futures = {pool.submit(_worker, job): job for job in jobs_list}
         for i, fut in enumerate(as_completed(futures), 1):
-            path, error, elapsed = fut.result()
-            failures += [(path, error)] if error else []
-            progress('[{}/{}] {} {}'.format(i, len(todo), 'FAILED' if error else '{:.1f}s'.format(elapsed), path))
+            finish(i, futures[fut], fut.result())
     return failures

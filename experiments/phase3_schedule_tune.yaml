@@ -4,20 +4,25 @@
 name: phase3_schedule_tune
 tuning: {part: schedule, output: artifacts/tuning/schedule.json}
 base_arm: {from_winners: artifacts/winners.json}
+# Amendment 3: 15 candidates (was 41), one or more per schedule family.
 candidates:
   - {type: legacy}
-  - {type: constant, beta: [0.25, 0.5, 1.0, 1.41, 2.0, 3.0]}
-  - {type: linear, start: [1.41, 2.0, 3.0], end: [0.1, 0.25, 0.5]}
-  - {type: exponential, start: [1.41, 2.0, 3.0], end: [0.1, 0.25, 0.5]}
-  - {type: gp_ucb, scale: [0.1, 0.2, 0.3, 0.5]}
-  - {type: adaptive, start: [1.0, 1.41, 2.0], down: [0.5, 0.7], up: [1.4, 2.0]}
+  - {type: constant, beta: [0.5, 1.0, 2.0]}
+  - {type: linear, start: 2.0, end: 0.25}
+  - {type: linear, start: 3.0, end: 0.5}
+  - {type: linear, start: 1.41, end: 0.1}
+  - {type: exponential, start: [2.0, 3.0], end: 0.25}
+  - {type: gp_ucb, scale: [0.1, 0.2, 0.3]}
+  - {type: adaptive, start: 1.41, down: 0.7, up: 1.4}
+  - {type: adaptive, start: 2.0, down: 0.5, up: 2.0}
+  - {type: adaptive, start: 1.0, down: 0.7, up: 1.4}
 problems:
   suite: suite/suite.json
   split: dev
   dims: [12, 27]
   noise: [realistic]
 settings: {batch_size: 32, n_rounds: 10, pool_size: 10000, test_points: 1000}
-seeds: [1000, 1020]
+seeds: [1000, 1010]   # amendment 3: 10 tuning seeds (was 20)
 pilot:
   seeds: [1000, 1002]
   settings: {pool_size: 2000, test_points: 300}

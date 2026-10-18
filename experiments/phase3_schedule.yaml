@@ -8,7 +8,9 @@ base_arm: {from_winners: artifacts/winners.json}
 arms:
   - {name: winners_legacy_schedule, schedule: {type: legacy}}
   - {name: tuned_schedule, from_tuning: artifacts/tuning/schedule.json}
-  - {name: incumbent_check, init: {type: random}, surrogate: {type: xgb_ensemble}, selector: {type: topk}, use_noise: false, schedule: {type: legacy}}
+  # The true v1 incumbent: every part reset, so it is identical to (and shared with) Phase 2's.
+  - {name: incumbent_check, init: {type: random}, surrogate: {type: xgb_ensemble}, selector: {type: topk}, use_noise: false,
+     schedule: {type: legacy}, pool: {type: random}}
 problems:
   suite: suite/suite.json
   split: test
@@ -16,7 +18,7 @@ problems:
   real: [borkowski, pure_pool]
   noise: [realistic]
 settings: {batch_size: 32, n_rounds: 10, pool_size: 10000, test_points: 1000}
-seeds: [0, 50]
+seeds: [0, 20]   # amendment 3: 20 paired seeds (was 50)
 pilot:
   seeds: [0, 4]
   settings: {pool_size: 2000, test_points: 300}
