@@ -17,7 +17,9 @@ import copy
 
 from metis import initialization, pools, schedules
 from metis.acquisition import GPBUCB, UCB, ExpectedImprovement, LocalPenalization, RandomSelector, SequentialFantasy, TopK
-from metis.surrogates import GPSurrogate, TabPFNSurrogate, XGBEnsemble
+from sklearn.linear_model import LinearRegression
+
+from metis.surrogates import GPSurrogate, RegressorEnsemble, TabPFNSurrogate, XGBEnsemble
 
 INCUMBENT = {
     'name': 'incumbent',
@@ -54,6 +56,9 @@ def make_surrogate(cfg, space, rng, use_noise):
         return GPSurrogate(input_transform=space.feature_transform(), random_state=rng, use_noise=use_noise, **p)
     if kind == 'tabpfn':
         return TabPFNSurrogate(random_state=rng, **p)
+    if kind == 'linear_ensemble':
+        # The paper's linear arm: identical copies, so the ensemble spread is zero and UCB ranks by the mean.
+        return RegressorEnsemble([LinearRegression() for _ in range(p.get('members', 20))], noise_weighting=use_noise)
     raise ValueError('unknown surrogate {}'.format(kind))
 
 

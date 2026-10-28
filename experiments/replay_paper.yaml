@@ -1,0 +1,32 @@
+# Exploratory replay of the METIS paper's measured-data experiments (not confirmatory;
+# docs/REPLAY.md). The oracle is the published data: only measured recipes can be chosen
+# and each returns its measured yield. 20% of recipes per dataset are held out to score
+# prediction accuracy; the other 80% are the candidate pool, which every round scores in
+# full (the 10,000-random-candidate generator does not apply to a finite measured pool).
+#
+# Batch size is about pool/20 per dataset, so 10 rounds measure half of the pool. The
+# paper's 80-100 recipes per round would exhaust these pools before round 10.
+#
+# TabPFN-3.5 needs `uv sync --extra tabpfn35 --extra cpu` (or cu126/cu128) and a one-time
+# licence acceptance (docs/REPLAY.md). Run the other arms alone with --skip-arms tabpfn35.
+name: replay_paper
+reference: incumbent
+families:
+  R1: {reference: incumbent, arms: [linear, tabpfn35]}
+problems:
+  measured:
+    - {name: pure, settings: {batch_size: 44}}
+    - {name: borkowski, settings: {batch_size: 40}}
+    - {name: cetch_yield, settings: {batch_size: 25}}
+    - {name: cetch_efficiency, settings: {batch_size: 40}}
+settings: {n_rounds: 10, pool_size: 100000}
+seeds: [0, 3]
+arms:
+  - {name: incumbent}   # METIS v1: XGBoost ensemble (200 random-search draws, 20 members), UCB, top-k
+  - {name: linear, surrogate: {type: linear_ensemble}}
+  - {name: tabpfn35, surrogate: {type: tabpfn, version: v3.5, n_estimators: 8, device: auto}}
+  - {name: random, selector: {type: random}}   # context: how easy is each pool without a model?
+pilot:
+  seeds: [0, 1]
+  settings: {n_rounds: 3}
+  arm_overrides: {xgb_ensemble: {n_iter: 15, ensemble_len: 10}, tabpfn: {n_estimators: 1}}

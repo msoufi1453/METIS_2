@@ -4,6 +4,7 @@
     python -m metis_bench calibrate                    # descriptors, suite selection, realism map
     python -m metis_bench run experiments/phase2_surrogates.yaml --jobs 8 [--pilot]
     python -m metis_bench report experiments/phase2_surrogates.yaml [--pilot]
+    python -m metis_bench replay experiments/replay_paper.yaml      # paper-style figures for measured-data runs
     python -m metis_bench tasks experiments/phase2_surrogates.yaml --shard 3/40   # list one shard (for clusters)
     python -m metis_bench run experiments/phase2_surrogates.yaml --arms surr_tabpfn  # one arm only (e.g. on a GPU)
 """
@@ -34,7 +35,7 @@ def main(argv=None):
     dec.add_argument('--out', default=None)
     dec.add_argument('--ignore-significance', action='store_true',
                      help='pilots only: pick the best mean per part even if not significant')
-    for name in ('run', 'report', 'tasks', 'tune'):
+    for name in ('run', 'report', 'tasks', 'tune', 'replay'):
         p = sub.add_parser(name)
         p.add_argument('experiment')
         p.add_argument('--pilot', action='store_true')
@@ -84,6 +85,10 @@ def main(argv=None):
     if args.command == 'report':
         from .report import write_report
         print(write_report(cfg, pathlib.Path(args.out) / cfg['name']))
+        return 0
+    if args.command == 'replay':
+        from .replay import write_replay
+        print(write_replay(cfg, pathlib.Path(args.out) / cfg['name']))
         return 0
     tasks = experiments.tasks(cfg, args.out)
     # Split an experiment across machines by arm, e.g. TabPFN on a GPU laptop and the rest

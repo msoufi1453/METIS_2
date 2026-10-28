@@ -164,6 +164,12 @@ def problem_configs(cfg):
                             'labels': {'kind': 'synthetic', 'landscape': f['landscape'], 'subtype': f['spec']['subtype'],
                                        'split': f['split'], 'realism': f['realism'],
                                        'nearest_real': f['nearest_real'], 'selection': f.get('selection')}})
+    for entry in p.get('measured', []):
+        # A measured dataset may set its own batch size: {name: pure, settings: {batch_size: 44}}.
+        entry = {'name': entry} if isinstance(entry, str) else entry
+        out.append({'measured': entry['name'], 'noise': 'none', 'settings': entry.get('settings', {}),
+                    'labels': {'kind': 'measured', 'landscape': 'measured', 'subtype': entry['name'], 'split': 'measured',
+                               'realism': 0.0, 'nearest_real': entry['name']}})
     for name in p.get('real', []):
         for noise in noises:
             out.append({'real': name, 'noise': noise, 'imported': imported,
@@ -184,8 +190,9 @@ def tasks(cfg, out_dir):
     out = []
     for problem_cfg in problem_configs(cfg):
         pid = get_problem(problem_cfg).id
+        problem_settings = {**settings, **problem_cfg.get('settings', {})}
         for arm in cfg['arms']:
             for seed in seeds_of(cfg):
                 path = result_path(out_dir, cfg['name'], pid, arm['name'], seed)
-                out.append((copy.deepcopy(problem_cfg), copy.deepcopy(arm), seed, settings, str(path)))
+                out.append((copy.deepcopy(problem_cfg), copy.deepcopy(arm), seed, problem_settings, str(path)))
     return out

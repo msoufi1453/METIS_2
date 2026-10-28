@@ -63,7 +63,10 @@ def run_campaign(problem_cfg, arm_cfg, seed, settings=None):
 
     # Held-out accuracy set: fixed per problem, independent of seed and arm.
     test_rng = np.random.default_rng(zlib.crc32((problem.id + '|test').encode()))
-    test_idx = space.sample(settings.test_points, test_rng)
+    # Measured-data oracles hold out real recipes; otherwise draw random feasible designs.
+    test_idx = getattr(oracle, 'test_idx', None)
+    if test_idx is None:
+        test_idx = space.sample(settings.test_points, test_rng)
     test_X, test_f = space.features(test_idx), oracle(test_idx)
 
     log = {'idx': [], 'round': [], 'true': [], 'mean': [], 'std': []}

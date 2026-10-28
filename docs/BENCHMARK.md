@@ -8,6 +8,9 @@ uv sync --extra tabpfn --extra cu126    # NVIDIA GPU up to RTX 40 series (cu128 
 ```
 
 The protocol, metrics and statistics are fixed in [PREREGISTRATION.md](PREREGISTRATION.md).
+A separate, exploratory replay of the paper's measured-data experiments (PURE, Borkowski,
+CETCH; XGBoost vs linear vs TabPFN-3.5) is described in [REPLAY.md](REPLAY.md). It needs
+`--extra tabpfn35` instead of `--extra tabpfn`.
 
 ## 0. Guards
 

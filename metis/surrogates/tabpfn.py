@@ -1,4 +1,11 @@
-"""TabPFN surrogate (optional dependency: ``uv sync --extra tabpfn``)."""
+"""TabPFN surrogate.
+
+``version='v2'`` (default, the main benchmark) needs ``uv sync --extra tabpfn``
+(package 2.0.x). ``version='v3.5'`` needs ``uv sync --extra tabpfn35`` (package 9.x,
+non-commercial weights, one-time licence acceptance with a Prior Labs account). The two
+extras are mutually exclusive, and ``fit`` refuses to run on the wrong one, so a run
+never silently uses a different model than its configuration says.
+"""
 import numpy as np
 
 from .base import Prediction, Surrogate, as_1d_float, as_2d_float
@@ -32,7 +39,8 @@ class TabPFNSurrogate(Surrogate):
     name = 'tabpfn'
     accepts_noise = False
 
-    def __init__(self, n_estimators=8, device='cpu', model_path='auto', chunk_size=2000, random_state=0):
+    def __init__(self, n_estimators=8, device='cpu', model_path='auto', chunk_size=2000, random_state=0, version='v2'):
+        self.version = version
         self.n_estimators = n_estimators
         self.device = device
         self.model_path = model_path
@@ -40,14 +48,31 @@ class TabPFNSurrogate(Surrogate):
         self.random_state = random_state
 
     def fit(self, X, y, noise_var=None):
+        import tabpfn
         from tabpfn import TabPFNRegressor
 
         random_state = self.random_state
         if isinstance(random_state, np.random.Generator):
             random_state = int(random_state.integers(2 ** 31 - 1))
-        self.model_ = TabPFNRegressor(n_estimators=self.n_estimators, device=self.device,
-                                      model_path=self.model_path, random_state=random_state,
-                                      ignore_pretraining_limits=True)
+        major = int(str(getattr(tabpfn, '__version__', '0')).split('.')[0])
+        if self.version == 'v2':
+            if major >= 3:
+                raise RuntimeError('TabPFN v2 arm needs the tabpfn 2.0.x package (uv sync --extra tabpfn); '
+                                   'installed: {}'.format(tabpfn.__version__))
+            self.model_ = TabPFNRegressor(n_estimators=self.n_estimators, device=self.device,
+                                          model_path=self.model_path, random_state=random_state,
+                                          ignore_pretraining_limits=True)
+        elif self.version == 'v3.5':
+            if major < 9:
+                raise RuntimeError('TabPFN-3.5 arm needs the tabpfn 9.x package (uv sync --extra tabpfn35); '
+                                   'installed: {}'.format(getattr(tabpfn, '__version__', '?')))
+            from tabpfn.constants import ModelVersion
+            options = {'device': self.device, 'random_state': random_state, 'ignore_pretraining_limits': True}
+            if self.n_estimators != 'auto':
+                options['n_estimators'] = self.n_estimators
+            self.model_ = TabPFNRegressor.create_default_for_version(ModelVersion.V3_5, **options)
+        else:
+            raise ValueError('unknown TabPFN version {}'.format(self.version))
         self.model_.fit(as_2d_float(X), as_1d_float(y))
         return self
 
@@ -62,4 +87,4 @@ class TabPFNSurrogate(Surrogate):
         return Prediction(mean=np.concatenate(means), std=np.concatenate(stds))
 
     def describe(self):
-        return {'name': self.name, 'n_estimators': self.n_estimators}
+        return {'name': self.name, 'version': self.version, 'n_estimators': self.n_estimators}

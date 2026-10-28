@@ -23,18 +23,26 @@ class Problem:
 @functools.lru_cache(maxsize=256)
 def _oracle_from_key(key):
     cfg = json.loads(key)
+    if 'measured' in cfg:
+        from .oracles.measured import build_measured
+        return build_measured(cfg['measured'])
     if 'real' in cfg:
         return REAL_ORACLES[cfg['real']]()
     return SyntheticOracle(build_function(FunctionSpec.from_dict(cfg['synthetic']), cfg['n_dims']))
 
 
 def oracle_for(cfg):
-    key = {'real': cfg['real']} if 'real' in cfg else {'synthetic': cfg['synthetic'], 'n_dims': cfg['n_dims']}
+    if 'measured' in cfg:
+        key = {'measured': cfg['measured']}
+    elif 'real' in cfg:
+        key = {'real': cfg['real']}
+    else:
+        key = {'synthetic': cfg['synthetic'], 'n_dims': cfg['n_dims']}
     return _oracle_from_key(json.dumps(key, sort_keys=True))
 
 
 def get_problem(cfg):
-    """``cfg``: ``{'real': 'borkowski'}`` or ``{'synthetic': spec_dict, 'n_dims': 12}``, plus
+    """``cfg``: ``{'real': 'borkowski'}``, ``{'measured': 'pure'}`` or ``{'synthetic': spec_dict, 'n_dims': 12}``, plus
     ``noise`` (preset name or dict) and optional ``imported`` and ``labels``."""
     oracle = oracle_for(cfg)
     noise = get_noise(cfg.get('noise', 'realistic'))
