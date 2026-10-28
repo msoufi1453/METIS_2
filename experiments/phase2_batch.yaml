@@ -1,12 +1,13 @@
-# Step 10 / families F3 and F3b: batch selection and replicate noise.
+# Step 10 / families F3 and F3c: batch selection and the candidate pool.
 # batch_fantasy = the v1 batch_ucb heuristic (kriging believer) generalised;
-# batch_lp = local penalisation with a 0.15 radius floor (preregistered);
-# noise_xgb = incumbent fitted with inverse-variance weights from the triplicate stds.
+# batch_lp = local penalisation with a 0.15 radius floor (preregistered).
+# Amendment 6: the replicate-noise questions (noise_xgb in F3, and family F3b with
+# surr_gp_noise vs surr_gp) are dropped, and 10 seeds; the incumbent's seeds 0-9 are
+# shared with phase2_surrogates, which keeps 20.
 name: phase2_batch
 reference: incumbent
 families:
-  F3: {reference: incumbent, arms: [batch_fantasy, batch_lp, noise_xgb]}
-  F3b: {reference: surr_gp, arms: [surr_gp_noise]}
+  F3: {reference: incumbent, arms: [batch_fantasy, batch_lp]}
   F3c: {reference: incumbent, arms: [pool_local]}
 problems:
   suite: suite/suite.json
@@ -15,18 +16,15 @@ problems:
   real: [borkowski, pure_pool]
   noise: [realistic]
 settings: {batch_size: 32, n_rounds: 10, pool_size: 10000, test_points: 1000}
-seeds: [0, 20]   # amendment 3: 20 paired seeds (was 50)
+seeds: [0, 10]   # amendment 6: 10 paired seeds (amendment 3: 20; originally 50)
 arms:
   - {name: incumbent}
   - {name: batch_fantasy, selector: {type: sequential_fantasy}}
   - {name: batch_lp, selector: {type: local_penalization, min_radius: 0.15}}
-  - {name: noise_xgb, use_noise: true}
-  - {name: surr_gp, surrogate: {type: gp_matern}}
-  - {name: surr_gp_noise, surrogate: {type: gp_matern}, use_noise: true}
   # Added by amendment 2026-10-14 (pilot showed random candidate pools cap progress):
   - {name: pool_local, pool: {type: local, local_share: 0.5, n_parents: 8, max_changes: 3}}
 pilot:
   seeds: [0, 4]
   settings: {pool_size: 2000, test_points: 300}
   problems: {limit_per_subtype: 1, dims: [12], real: [borkowski]}
-  arm_overrides: {xgb_ensemble: {n_iter: 15, ensemble_len: 10}, gp_matern: {n_restarts: 0}}
+  arm_overrides: {xgb_ensemble: {n_iter: 15, ensemble_len: 10}}

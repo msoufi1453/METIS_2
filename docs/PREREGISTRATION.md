@@ -14,10 +14,10 @@ are never used for confirmatory claims or to choose between arms.
 
 | ID | Question | Phase |
 | --- | --- | --- |
-| H1 | Does a space-filling initial design (scrambled Sobol, maximin LHS) beat METIS's uniform random day 1? Does "fill the unsampled region" help when a campaign starts from imported data? | 2 (step 8) |
+| H1 | Does a space-filling initial design (scrambled Sobol, maximin LHS) beat METIS's uniform random day 1? Does "fill the unsampled region" help when a campaign starts from imported data? (Amendment 6: Sobol only; the imported-data question is dropped.) | 2 (step 8) |
 | H2 | Do TabPFN or a Matern GP beat the XGBoost ensemble as surrogate, in final regret, predictive accuracy and interval calibration? | 2 (step 9) |
-| H3 | Does proper batch selection with a diversity penalty beat top-32-by-UCB and the v1 `batch_ucb` heuristic? Does feeding replicate standard deviations into the surrogate help? | 2 (step 10) |
-| H4 | Does a tuned or adaptive exploration schedule beat the hand-set 1.41 / 1.0 / 0.5 list? | 3 (step 11) |
+| H3 | Does proper batch selection with a diversity penalty beat top-32-by-UCB and the v1 `batch_ucb` heuristic? Does feeding replicate standard deviations into the surrogate help? (Amendment 6: the replicate-noise question is dropped.) | 2 (step 10) |
+| H4 | Does a tuned or adaptive exploration schedule beat the hand-set 1.41 / 1.0 / 0.5 list? (Amendment 6: not tested; every model keeps its own schedule.) | 3 (step 11) |
 | H5 | Do tuned hyperparameters improve the step 9 winner? | 3 (step 12) |
 | H6 | Which intervention carries the effect, alone and in combination? | 3 (step 13) |
 
@@ -53,7 +53,7 @@ exp(-d^2 / 2 tau^2) (tau = median distance in the subtype), and 2 are chosen for
 
 Within each subtype, specs are sorted by id and every third goes to **dev** (both of its
 dimensionalities). The rest are **test**. Phase 3 tuning (schedules, hyperparameters) may
-look only at dev. All confirmatory comparisons use the test split plus the real oracles,
+look only at dev (after amendment 6, hyperparameters only). All confirmatory comparisons use the test split plus the real oracles,
 which are never used for tuning. (One exception, amendment 4: TabPFN's own exploration
 schedule was tuned on the measured PURE and Borkowski data the two real oracles are built
 from.)
@@ -73,7 +73,8 @@ from.)
   TabPFN arms that set no schedule use TabPFN's own tuned schedule instead (amendment 4):
   `exploit_ramp` with slope 4.5, i.e. UCB `0.5 * mean + 0.5 * std` in round 2 and the mean
   alone from round 3 (tuned 2026-10-28, before any confirmatory campaign).
-* **Seeds**: 20 per (problem, arm), seeds 0 to 19 (amendment 3; was 50). Tuning uses
+* **Seeds**: 20 per (problem, arm), seeds 0 to 19 (amendment 3; was 50); 10 (seeds 0 to 9) for
+  families F1, F3 and F3c (amendment 6). Tuning uses
   10 seeds, 1000 to 1009 (was 20). A seed fixes the initial design (per
   initialiser type), the imported data, and every noise draw, so arms are paired
   (common random numbers).
@@ -120,14 +121,14 @@ schedule, top-k, replicate stds ignored). Exact arm definitions are in `experime
 
 | Family | Arms (each vs reference) | Endpoint |
 | --- | --- | --- |
-| F1 init | `init_sobol`, `init_lhs` | primary |
-| F1b imported data | `import_fill` vs `import_v1` | primary |
+| F1 init | `init_sobol` (`init_lhs` dropped, amendment 6) | primary |
+| ~~F1b imported data~~ | dropped (amendment 6) | |
 | F2 surrogate | `surr_gp`, `surr_tabpfn` (TabPFN-3.5 with its tuned schedule, amendments 4 and 5) | primary; accuracy and calibration secondary |
-| F3 batching and noise | `batch_fantasy` (v1 heuristic), `batch_lp` (local penalisation, radius floor 0.15), `noise_xgb` (replicate stds as XGB weights) | primary |
-| F3b noise feeding with GP | `surr_gp_noise` vs `surr_gp` | primary |
+| F3 batching | `batch_fantasy` (v1 heuristic), `batch_lp` (local penalisation, radius floor 0.15); `noise_xgb` dropped (amendment 6) | primary |
+| ~~F3b noise feeding with GP~~ | dropped (amendment 6) | |
 | F3c candidate pool (amendment 1) | `pool_local` (half the pool from mutations of the 8 best measured recipes) | primary |
-| F4 schedule | best dev schedule vs the v1 schedule, both on top of the Phase 2 winners | primary |
-| F5 hyperparameters | tuned vs untuned winning surrogate, both with the Phase 2 winners and the tuned schedule | primary |
+| ~~F4 schedule~~ | dropped (amendment 6): XGBoost and the GP keep the v1 schedule, TabPFN its amendment-4 schedule | |
+| F5 hyperparameters | tuned vs untuned winning surrogate, both with the Phase 2 winners and the model's own schedule | primary |
 | F6 ablation | every non-empty subset of the winning interventions vs `incumbent`, on 30 problems (28 test functions sampled evenly over subtype x dimension, plus both real oracles), realistic noise (amendment 3) | primary; main effects and interactions by linear model on paired differences; Shapley shares |
 
 Descriptive baselines, outside every family and never tested: `random_search` in
@@ -165,3 +166,4 @@ per-round accuracy and calibration curves.
 | 2026-10-18 | Amendment 3: compute budget. (a) 20 paired seeds per (problem, arm) instead of 50; (b) tuning: 10 seeds instead of 20, and 15 schedule candidates instead of 41 (at least one per family); (c) ablation: realistic noise only (was realistic, none and high) and 30 problems (28 test functions stratified over subtype x dimension by a fixed hash, plus both real oracles) instead of 56; (d) identical campaigns (same resolved arm, problem, seed and settings) are computed once and shared between experiments; (e) the TabPFN arm keeps full coverage (all 56 problems x 20 seeds) and may run on a GPU; (f) `incumbent_check` in phase3_schedule resets the candidate pool to random, so it is the true v1 incumbent | The full design was about 19,000 core-hours (most of it the ablation at three noise levels). The amended design is about 2,700 core-hours plus the TabPFN arm. The main test treats problems (56) as the unit, so fewer seeds mainly widens per-problem averages and does not bias paired comparisons. (d) and (f) do not change any result. Made before any confirmatory campaign | unchanged |
 | 2026-10-28 | Amendment 4: TabPFN's own exploration schedule. (a) New schedule family `exploit_ramp`: exploitation weight min(1, slope x (round - 1) / 9), exploration weight 1 - exploitation. (b) `experiments/tabpfn_schedule_tune.yaml` picks one of 10 slopes (0.8 to 4.5; every one starts mostly exploring and ends mostly or fully exploiting) for TabPFN-3.5 on the measured-data replay (PURE, Borkowski, CETCH yield and efficiency; docs/REPLAY.md), 5 seeds, by the lowest mean `auc_norm_regret` with datasets weighted equally. Every arm reaches the pool's best recipe there, so the primary endpoint ties. The v1 schedule runs as a reference and cannot win. (c) The winner (`experiments/tuned/tabpfn_schedule.json`) is the schedule of every TabPFN arm that sets none, including `surr_tabpfn` in F2 and any Phase 3 arm built from a TabPFN winner; confirmatory runs refuse to start without it. (d) The decision rule counts TabPFN with its own schedule as one surrogate intervention. XGBoost and the GP keep the v1 schedule | In the replay, the XGBoost ensemble's 80% intervals held 30-41% of held-out recipes and TabPFN-3.5's 88-93%. The v1 weights were set for XGBoost, so under them TabPFN explores far more, and F2 would partly compare the size of the two models' uncertainties rather than the models. Caveats: the tuning data are the measurements the `borkowski` and `pure_pool` oracles are built from, so TabPFN's F2 result on those two problems is not independent of the tuning (the stratified tables give the synthetic-only result); the schedule is tuned with TabPFN-3.5, while `surr_tabpfn` uses TabPFN v2 unless changed. Made before any confirmatory campaign | unchanged |
 | 2026-10-28 | Amendment 5: every TabPFN arm uses TabPFN-3.5 (`tabpfn==9.2.0`, `version: v3.5`, environment extra `tabpfn35`) instead of TabPFN v2 (`tabpfn==2.0.9`). The Phase 3 TabPFN hyperparameter candidates also name `device: auto`, which they had lost by replacing the whole surrogate setting | TabPFN-3.5 is the model the schedule of amendment 4 was tuned with, and the current TabPFN release. Its weights are under a non-commercial licence and need a one-time licence acceptance. Made before any confirmatory campaign | unchanged |
+| 2026-10-28 | Amendment 6: fewer XGBoost campaigns. (a) Dropped from Phase 2: `init_lhs` (F1 keeps `init_sobol`), the imported-data family F1b (`import_v1`, `import_fill`), `noise_xgb` (F3) and family F3b (`surr_gp_noise` vs `surr_gp`). (b) Families F1, F3 and F3c use 10 seeds (0 to 9); F2 (XGBoost vs TabPFN vs GP) keeps all 56 problems x 20 seeds, and the incumbent's seeds 0 to 9 are shared. (c) Phase 3 no longer tunes the exploration schedule (step 11, family F4): every model keeps its own (XGBoost and the GP: v1; TabPFN: amendment 4), so steps 12 and 13 build on the Phase 2 winners and the hyperparameter tuning only. (d) Reports analyse only the configured arms and seeds, so files from the earlier plan are ignored | The measured-data replay timed a full XGBoost campaign at 15-30 CPU-minutes, 2-4 times the amendment-3 estimate. Phase 2 had 10,040 XGBoost campaigns (about 2,500-5,000 core-hours) and Phase 3's schedule tuning about 7,600 more if XGBoost wins. After (a) and (b) Phase 2 has 3,360. The main question (H2) keeps full coverage; the remaining side questions lose power (per-problem means from 10 seeds instead of 20). The v1 schedule was set for XGBoost by the METIS authors. Made before any confirmatory campaign was analysed | unchanged |

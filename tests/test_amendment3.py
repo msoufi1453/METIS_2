@@ -68,8 +68,10 @@ def test_ablation_problems_are_thirty_realistic():
 
 
 def test_seeds_and_tabpfn_coverage():
-    for name in ('phase2_init', 'phase2_import', 'phase2_surrogates', 'phase2_batch'):
-        assert experiments.load(ROOT / 'experiments/{}.yaml'.format(name))['seeds'] == [0, 20]
+    # Amendment 6: the surrogate comparison keeps 20 seeds, the side questions use 10.
+    assert experiments.load(ROOT / 'experiments/phase2_surrogates.yaml')['seeds'] == [0, 20]
+    for name in ('phase2_init', 'phase2_batch'):
+        assert experiments.load(ROOT / 'experiments/{}.yaml'.format(name))['seeds'] == [0, 10]
     cfg = experiments.load(ROOT / 'experiments/phase2_surrogates.yaml')
     tabpfn = next(a for a in cfg['arms'] if a['name'] == 'surr_tabpfn')
     assert tabpfn['surrogate']['device'] == 'auto'

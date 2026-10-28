@@ -43,7 +43,9 @@ if (-not $Pilot -and -not (Test-Path 'experiments\tuned\tabpfn_schedule.json')) 
 Bench oracles
 
 if ($Phase -in @('all', '2')) {
-    foreach ($exp in @('phase2_init', 'phase2_import', 'phase2_surrogates', 'phase2_batch')) {
+    # The surrogate comparison first, so TabPFN vs XGBoost is answered before the side questions.
+    # phase2_import is not run (amendment 6).
+    foreach ($exp in @('phase2_surrogates', 'phase2_init', 'phase2_batch')) {
         Bench run "experiments/$exp.yaml" @flag @parallel
         Bench report "experiments/$exp.yaml" @flag
     }
@@ -54,9 +56,7 @@ if ($Phase -in @('all', '2')) {
 }
 
 if ($Phase -in @('all', '3')) {
-    Bench tune experiments/phase3_schedule_tune.yaml @flag @parallel
-    Bench run experiments/phase3_schedule.yaml @flag @parallel
-    Bench report experiments/phase3_schedule.yaml @flag
+    # No schedule re-tuning (amendment 6): every model keeps its own schedule.
     Bench tune experiments/phase3_hparams_tune.yaml @flag @parallel
     Bench run experiments/phase3_hparams.yaml @flag @parallel
     Bench report experiments/phase3_hparams.yaml @flag

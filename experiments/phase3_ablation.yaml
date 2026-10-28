@@ -1,5 +1,5 @@
 # Step 13 / family F6: full factorial over the winning interventions (Phase 2 winners plus
-# the tuned schedule and tuned surrogate hyperparameters): 2^k arms, the empty subset being
+# the tuned surrogate hyperparameters; no schedule tuning, amendment 6): 2^k arms, the empty subset being
 # the incumbent. Report adds main effects, pairwise interactions and Shapley shares.
 # Amendment 3: realistic noise only, 28 test functions sampled evenly over landscape
 # subtype x dimension plus both real oracles (30 problems), 20 seeds.
@@ -7,7 +7,7 @@ name: phase3_ablation
 reference: incumbent
 arms:
   ablation_of: artifacts/winners.json
-  tuning: [artifacts/tuning/schedule.json, artifacts/tuning/surrogate.json]
+  tuning: [artifacts/tuning/surrogate.json]
 problems:
   suite: suite/suite.json
   split: test
@@ -20,7 +20,7 @@ seeds: [0, 20]
 pilot:
   # 2^k arms grow fast: the pilot ablates only the parts with visible pilot signal and runs
   # a few representative landscapes. The confirmatory ablation uses every winner.
-  ablation_only: [surrogate, batch, pool, schedule]
+  ablation_only: [surrogate, batch, pool]
   seeds: [0, 2]
   settings: {pool_size: 2000, test_points: 300}
   problems: {limit_per_subtype: 1, dims: [12], subtypes: [broad, switch_on, peaks, multiplicative], real: [borkowski],

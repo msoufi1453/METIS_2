@@ -1,3 +1,5 @@
+# NOT RUN (amendment 6): Phase 3 no longer re-tunes the schedule; every model keeps its
+# own (XGBoost and the GP: METIS's v1 schedule; TabPFN: amendment 4's). Kept for reference.
 # Step 11: tune the exploration schedule on the DEV split, on top of the Phase 2 winners
 # (artifacts/winners.json from `python -m metis_bench decide`). Tuning seeds 1000-1019 are
 # disjoint from the confirmatory seeds. Winner -> artifacts/tuning/schedule.json.

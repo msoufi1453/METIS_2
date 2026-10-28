@@ -1,3 +1,4 @@
+# NOT RUN (amendment 6): the imported-data comparison (family F1b) is dropped. Kept for reference.
 # Step 8 / family F1b: campaigns that start from imported one-factor-at-a-time data.
 # import_v1 goes straight to model-guided rounds; import_fill spends round 1 filling the
 # region the imported data never sampled.

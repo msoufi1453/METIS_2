@@ -26,7 +26,9 @@ fi
 # Load the committed real-data oracles once, so parallel workers never build them at the same time.
 bench oracles
 
-for exp in phase2_init phase2_import phase2_surrogates phase2_batch; do
+# The surrogate comparison first, so TabPFN vs XGBoost is answered before the side questions.
+# phase2_import is not run (amendment 6).
+for exp in phase2_surrogates phase2_init phase2_batch; do
   bench run "experiments/$exp.yaml" $FLAG --jobs "$JOBS" --gpu-jobs "$GPU_JOBS"
   bench report "experiments/$exp.yaml" $FLAG
 done
@@ -37,9 +39,7 @@ if [[ "${PILOT:-0}" == "1" ]]; then DECIDE_FLAGS="$FLAG --ignore-significance"; 
 bench decide $DECIDE_FLAGS \
   "results/phase2_init$SUFFIX/report" "results/phase2_surrogates$SUFFIX/report" "results/phase2_batch$SUFFIX/report"
 
-bench tune experiments/phase3_schedule_tune.yaml $FLAG --jobs "$JOBS" --gpu-jobs "$GPU_JOBS"
-bench run experiments/phase3_schedule.yaml $FLAG --jobs "$JOBS" --gpu-jobs "$GPU_JOBS"
-bench report experiments/phase3_schedule.yaml $FLAG
+# No schedule re-tuning (amendment 6): every model keeps its own schedule.
 
 bench tune experiments/phase3_hparams_tune.yaml $FLAG --jobs "$JOBS" --gpu-jobs "$GPU_JOBS"
 bench run experiments/phase3_hparams.yaml $FLAG --jobs "$JOBS" --gpu-jobs "$GPU_JOBS"

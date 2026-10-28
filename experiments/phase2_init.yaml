@@ -1,8 +1,10 @@
 # Step 8 / family F1: initial design. Everything else is the METIS v1 incumbent.
+# Amendment 6: Sobol only (the maximin LHS arm is dropped) and 10 seeds; the incumbent's
+# seeds 0-9 are shared with phase2_surrogates, which keeps 20.
 name: phase2_init
 reference: incumbent
 families:
-  F1: {reference: incumbent, arms: [init_sobol, init_lhs]}
+  F1: {reference: incumbent, arms: [init_sobol]}
 problems:
   suite: suite/suite.json
   split: test
@@ -10,11 +12,10 @@ problems:
   real: [borkowski, pure_pool]
   noise: [realistic]
 settings: {batch_size: 32, n_rounds: 10, pool_size: 10000, test_points: 1000}
-seeds: [0, 20]   # amendment 3: 20 paired seeds (was 50)
+seeds: [0, 10]   # amendment 6: 10 paired seeds (amendment 3: 20; originally 50)
 arms:
   - {name: incumbent}
   - {name: init_sobol, init: {type: sobol}}
-  - {name: init_lhs, init: {type: lhs_maximin}}
   - {name: random_search, selector: {type: random}}   # descriptive floor, not in F1
 pilot:
   seeds: [0, 4]

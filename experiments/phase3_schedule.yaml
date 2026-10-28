@@ -1,3 +1,5 @@
+# NOT RUN (amendment 6): Phase 3 no longer re-tunes the schedule; every model keeps its
+# own (XGBoost and the GP: METIS's v1 schedule; TabPFN: amendment 4's). Kept for reference.
 # Step 11 / family F4: the tuned schedule vs the v1 schedule, both on top of the Phase 2
 # winners, on the TEST split and the real oracles.
 name: phase3_schedule

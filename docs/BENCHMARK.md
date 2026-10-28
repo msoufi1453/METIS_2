@@ -69,17 +69,16 @@ Order (each step needs the previous one's output):
 # every machine runs TabPFN arms with it; confirmatory runs refuse to start without it.
 tune   experiments/tabpfn_schedule_tune.yaml   # -> experiments/tuned/tabpfn_schedule.json
 
-# Phase 2: the three interventions against the incumbent
-run experiments/phase2_init.yaml;        report experiments/phase2_init.yaml
-run experiments/phase2_import.yaml;      report experiments/phase2_import.yaml
+# Phase 2: the surrogate comparison first (the main question), then the side questions.
+# phase2_import is not run (amendment 6).
 run experiments/phase2_surrogates.yaml;  report experiments/phase2_surrogates.yaml
+run experiments/phase2_init.yaml;        report experiments/phase2_init.yaml
 run experiments/phase2_batch.yaml;       report experiments/phase2_batch.yaml
 decide results/phase2_init/report results/phase2_surrogates/report results/phase2_batch/report
 #   -> artifacts/winners.json (preregistered decision rule, per intervention part)
 
-# Phase 3: tuning on the dev split, confirmation on the test split, ablation
-tune   experiments/phase3_schedule_tune.yaml   # -> artifacts/tuning/schedule.json
-run    experiments/phase3_schedule.yaml;  report experiments/phase3_schedule.yaml
+# Phase 3: hyperparameter tuning on the dev split, confirmation on the test split, ablation.
+# No schedule re-tuning (amendment 6): phase3_schedule_tune and phase3_schedule are not run.
 tune   experiments/phase3_hparams_tune.yaml    # -> artifacts/tuning/surrogate.json
 run    experiments/phase3_hparams.yaml;   report experiments/phase3_hparams.yaml
 run    experiments/phase3_ablation.yaml;  report experiments/phase3_ablation.yaml
@@ -105,15 +104,20 @@ result can be reweighted or filtered by realism.
 
 ## 4. Compute
 
-Phase 2 is 15,640 distinct campaigns (after sharing identical ones): 10,040 XGBoost,
-3,360 GP, 1,120 TabPFN and 1,120 random search.
+Phase 2 is 6,160 distinct campaigns (after sharing identical ones): 3,360 XGBoost, 1,120
+GP, 1,120 TabPFN and 560 random search. Before amendment 6 it was 15,640, with 10,040
+XGBoost: every Phase 2 idea except the surrogate swap is its own XGBoost arm, and each arm
+is 56 problems x 20 seeds. Amendment 6 dropped four of those arms and runs the remaining
+side questions with 10 seeds; the surrogate comparison keeps all 1,120 per arm.
 
 Per-campaign cost. The first estimates came from pilot settings: the full incumbent
 (RandomizedSearchCV, 200 draws x 5 folds every round) about 8 CPU-minutes, XGBoost with
 fantasy batches about 16, the GP about 1.5. The measured-data replay (docs/REPLAY.md) then
 timed the full incumbent at 16-38 CPU-minutes per campaign, so plan on 15-30 per synthetic
-campaign: Phase 2's CPU arms are then about 2,600-5,100 core-hours (the earlier
-2,700-core-hour figure for the whole amended design was based on the 8-minute guess).
+campaign: Phase 2's CPU arms are then about 1,000-2,000 core-hours, of which the surrogate
+comparison's XGBoost arm is 280-560. Phase 3 depends on the winners: about 2,000-6,000
+core-hours, most of it the hyperparameter grid (12 XGBoost candidates x 36 dev functions x
+10 seeds if XGBoost wins) and the ablation.
 TabPFN-3.5 on an RTX 5090 laptop GPU took 0.5-0.8 s per round in the replay; a synthetic
 round scores about 10 times more recipes (10,000 candidates and 1,000 test recipes), so
 expect about 1 minute per campaign, roughly a day for Phase 2's 1,120. Without the GPU

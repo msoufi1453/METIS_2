@@ -173,11 +173,20 @@ def _fmt(table):
     return table.to_markdown(index=False, floatfmt='.4g') if hasattr(table, 'to_markdown') else table.to_string(index=False)
 
 
+def in_plan(cfg, frame):
+    """Only the configuration's arms and seeds. Result files left from an earlier plan (a
+    dropped arm, extra seeds) stay on disk but never enter the analysis."""
+    from .experiments import seeds_of
+    if not len(frame):
+        return frame
+    return frame[frame.arm.isin({a['name'] for a in cfg['arms']}) & frame.seed.isin(set(seeds_of(cfg)))]
+
+
 def write_report(cfg, exp_dir, n_boot=stats.N_BOOTSTRAP):
     exp_dir = pathlib.Path(exp_dir)
     out = exp_dir / 'report'
     out.mkdir(parents=True, exist_ok=True)
-    runs, rounds, curves = collect(exp_dir)
+    runs, rounds, curves = (in_plan(cfg, frame) for frame in collect(exp_dir))
     if runs.empty:
         raise RuntimeError('no results under {}'.format(exp_dir))
     (out / 'config.json').write_text(json.dumps(cfg, indent=1, default=str))
