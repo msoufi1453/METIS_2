@@ -105,10 +105,14 @@ def run_campaign(problem_cfg, arm_cfg, seed, settings=None):
         noise_var = np.array(log['std']) ** 2 / noise.n_replicates if use_noise else None
         surrogate = arm_lib.make_surrogate(arm['surrogate'], space, model_rng, use_noise)
         acquisition = arm_lib.make_acquisition(arm['acquisition'])
-        exploration = None
+        exploration = exploitation = None
         if hasattr(acquisition, 'exploration'):
-            exploration = float(schedule(r, settings.n_rounds, history))
+            exploitation, exploration = schedule.weights(r, settings.n_rounds, history)
+            exploration = float(exploration)
             acquisition.exploration = exploration
+            if exploitation is not None:   # schedules that also move the exploitation weight
+                acquisition.exploitation = float(exploitation)
+            exploitation = float(acquisition.exploitation)
         pool = pool_gen.generate(space, settings.pool_size, pool_rngs[r], observed, y_obs)
         if len(pool) == 0:
             break
@@ -126,7 +130,8 @@ def run_campaign(problem_cfg, arm_cfg, seed, settings=None):
 
         test_pred = surrogate.predict(test_X)
         chosen_f = oracle(chosen)
-        record = {'round': r, 'exploration': exploration, 'select_s': t_select, 'batch_size': len(chosen),
+        record = {'round': r, 'exploitation': exploitation, 'exploration': exploration, 'select_s': t_select,
+                  'batch_size': len(chosen),
                   **{'test_' + k: v for k, v in metrics.accuracy(test_pred.mean, test_f).items()},
                   **{'test_' + k: v for k, v in metrics.calibration(test_pred.mean, test_pred.std, test_f).items()},
                   **{'batch_' + k: v for k, v in metrics.accuracy(result.prediction.mean, chosen_f).items()},

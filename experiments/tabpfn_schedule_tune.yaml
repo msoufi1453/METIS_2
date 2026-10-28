@@ -1,0 +1,42 @@
+# Tune TabPFN's exploration schedule on the measured-data replay (docs/REPLAY.md).
+# The winner becomes the default schedule of every TabPFN arm that sets none
+# (experiments/tuned/tabpfn_schedule.json, amendment 4). XGBoost keeps the v1 schedule it
+# was tuned with; the linear model has no uncertainty, so a schedule cannot change it.
+#
+# Run on the GPU machine (TabPFN-3.5, about 30 minutes on an RTX 5090 laptop GPU):
+#   uv sync --extra tabpfn35 --extra cu128
+#   python -m metis_bench tune experiments/tabpfn_schedule_tune.yaml --jobs 1
+# then commit experiments/tuned/tabpfn_schedule.json so every machine uses the same schedule.
+name: tabpfn_schedule_tune
+tuning:
+  part: schedule
+  output: experiments/tuned/tabpfn_schedule.json
+  # Every model finds the best recipe by round 10 on these pools, so the final regret ties;
+  # rank by how fast good recipes are found: mean normalised regret over rounds 1-10.
+  metric: auc_norm_regret
+base_arm: {surrogate: {type: tabpfn, version: v3.5, n_estimators: 8, device: auto}}
+# exploitation = min(1, slope * (round - 1) / 9) and exploration = 1 - exploitation, so UCB
+# scores exploitation * mean + exploration * std: every candidate starts mostly exploring
+# (round 2: 9% to 50% exploitation) and eases into exploitation. Slope 9 / (R - 1) only
+# exploits from round R on: 4.5 -> round 3, 3 -> 4, 2.25 -> 5, 1.8 -> 6, 1.5 -> 7, 1.3 -> 8,
+# 1.125 -> 9, 1 -> 10; 0.9 and 0.8 never stop exploring (they end at 90% and 80%).
+candidates:
+  - {type: exploit_ramp, slope: [0.8, 0.9, 1.0, 1.125, 1.3, 1.5, 1.8, 2.25, 3.0, 4.5]}
+# METIS's v1 schedule, for comparison only: it cannot win. Identical to the replay's
+# tabpfn35 arm, so seeds 0-2 are reused from that run when its results are on the machine.
+reference_arms:
+  - {name: tabpfn_v1_schedule, schedule: {type: legacy}}
+problems:
+  measured:
+    - {name: pure, settings: {batch_size: 44}}
+    - {name: borkowski, settings: {batch_size: 40}}
+    - {name: cetch_yield, settings: {batch_size: 25}}
+    - {name: cetch_efficiency, settings: {batch_size: 40}}
+settings: {n_rounds: 10, pool_size: 100000}
+seeds: [0, 5]
+pilot:
+  seeds: [0, 1]
+  settings: {n_rounds: 3}
+  candidates:
+    - {type: exploit_ramp, slope: [1.0, 4.5]}
+  arm_overrides: {tabpfn: {n_estimators: 1}}

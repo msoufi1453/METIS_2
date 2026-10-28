@@ -15,6 +15,13 @@ if [[ "${PILOT:-0}" == "1" ]]; then FLAG="--pilot"; SUFFIX="-pilot"; fi
 # TORCH=cpu (default), cu126 or cu128 picks the PyTorch build for the TabPFN arm.
 bench() { uv run --extra tabpfn --extra "${TORCH:-cpu}" python -W ignore -m metis_bench "$@"; }
 
+# TabPFN arms use TabPFN's own schedule, tuned beforehand on the replay data with TabPFN-3.5
+# on a GPU (experiments/tabpfn_schedule_tune.yaml, amendment 4). Pilots fall back to v1.
+if [[ "${PILOT:-0}" != "1" && ! -f experiments/tuned/tabpfn_schedule.json ]]; then
+  echo "experiments/tuned/tabpfn_schedule.json is missing: run the TabPFN schedule tuning first (docs/REPLAY.md)" >&2
+  exit 1
+fi
+
 for exp in phase2_init phase2_import phase2_surrogates phase2_batch; do
   bench run "experiments/$exp.yaml" $FLAG --jobs "$JOBS"
   bench report "experiments/$exp.yaml" $FLAG

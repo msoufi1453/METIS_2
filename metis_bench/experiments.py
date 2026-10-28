@@ -6,6 +6,7 @@ Pilot mode (``--pilot``) applies the file's ``pilot`` overrides and writes to
 import copy
 import json
 import pathlib
+import sys
 import zlib
 
 import yaml
@@ -107,7 +108,24 @@ def load(path, pilot=False):
             params = cfg.get('pilot_overrides', {}).get(target.get('type'), {})
             if params:
                 arm['surrogate'] = {**target, **params}
+        _untuned_tabpfn_pilot(cfg)
     return cfg
+
+
+def _untuned_tabpfn_pilot(cfg):
+    """Pilots may run before TabPFN's schedule is tuned; they then use the v1 schedule, and say so.
+
+    Confirmatory runs never fall back: ``arms.resolve`` raises instead.
+    """
+    from .arms import TABPFN_SCHEDULE
+    if TABPFN_SCHEDULE.exists():
+        return
+    for arm in cfg['arms']:
+        if arm.get('surrogate', {}).get('type') == 'tabpfn' and 'schedule' not in arm:
+            arm['schedule'] = {'type': 'legacy'}
+            # stderr: `tasks` prints task paths on stdout for cluster scripts.
+            print('note: {} not found, so pilot arm {} uses the v1 schedule'.format(TABPFN_SCHEDULE.name, arm['name']),
+                  file=sys.stderr)
 
 
 def load_suite(path):

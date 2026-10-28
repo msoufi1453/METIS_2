@@ -1,4 +1,7 @@
-"""Exploration schedules: the UCB exploration coefficient for each round.
+"""Exploration schedules: the UCB weights for each round.
+
+Most schedules set only the exploration coefficient and leave UCB's exploitation weight
+at 1, as in METIS; ``ExploitRampSchedule`` sets both (``Schedule.weights``).
 
 ``round_index`` is the round being proposed: 2 is the first model-guided round after
 the day-1 random design, as ``exploration[day + 1]`` in the notebooks.
@@ -13,6 +16,11 @@ class Schedule:
 
     def __call__(self, round_index, n_rounds, history=None):
         raise NotImplementedError
+
+    def weights(self, round_index, n_rounds, history=None):
+        """``(exploitation, exploration)`` for the round. ``None`` keeps the acquisition's own
+        exploitation weight, so by default a schedule sets only the exploration bonus."""
+        return None, self(round_index, n_rounds, history)
 
     def describe(self):
         return {'name': self.name, **{k: v for k, v in vars(self).items() if not k.startswith('_')}}
@@ -115,8 +123,32 @@ class AdaptiveSchedule(Schedule):
         return beta
 
 
+class ExploitRampSchedule(Schedule):
+    """Exploitation rises linearly with the round; exploration takes the rest.
+
+    ``exploitation = min(1, slope * (round - 1) / (n_rounds - 1))`` and ``exploration =
+    1 - exploitation``, so UCB scores ``exploitation * mean + exploration * std``: mostly
+    uncertainty in the first guided round, the prediction alone once the ramp reaches 1.
+    Over 10 rounds, slope ``9 / (R - 1)`` reaches pure exploitation at round R (slope 1: the
+    last round); a slope below 1 never does and ends at ``slope``.
+    """
+
+    name = 'exploit_ramp'
+
+    def __init__(self, slope=1.0):
+        self.slope = slope
+
+    def weights(self, round_index, n_rounds, history=None):
+        exploitation = float(np.clip(self.slope * (round_index - 1) / max(n_rounds - 1, 1), 0.0, 1.0))
+        return exploitation, 1.0 - exploitation
+
+    def __call__(self, round_index, n_rounds, history=None):
+        return self.weights(round_index, n_rounds, history)[1]
+
+
 REGISTRY = {'legacy': LegacySchedule, 'constant': ConstantSchedule, 'linear': LinearDecaySchedule,
-            'exponential': ExponentialDecaySchedule, 'gp_ucb': GPUCBSchedule, 'adaptive': AdaptiveSchedule}
+            'exponential': ExponentialDecaySchedule, 'gp_ucb': GPUCBSchedule, 'adaptive': AdaptiveSchedule,
+            'exploit_ramp': ExploitRampSchedule}
 
 
 def make(cfg):

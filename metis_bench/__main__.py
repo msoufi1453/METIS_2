@@ -112,12 +112,17 @@ def main(argv=None):
     for path, error in failures:
         print('FAILED', path, '\n', error, file=sys.stderr)
     if args.command == 'tune' and not failures:
+        from .metrics import PRIMARY_ENDPOINT
         from .report import collect
-        from .tuning import select_winner, write_winner
+        from .tuning import select_winner, tuning_report, write_winner
         runs, _, _ = collect(pathlib.Path(args.out) / cfg['name'])
-        winner, table = select_winner(runs)
+        metric = cfg['tuning'].get('metric', PRIMARY_ENDPOINT)
+        exclude = [a['name'] for a in cfg.get('reference_arms', [])]
+        winner, table = select_winner(runs, metric=metric, exclude=exclude)
         print(table.round(4).to_string())
         print('winner:', winner, '->', write_winner(cfg['tuning']['output'], cfg, winner, table))
+        print('report:', tuning_report(cfg, runs, winner, metric, exclude,
+                                       pathlib.Path(args.out) / cfg['name'] / 'tuning'))
     return 1 if failures else 0
 
 

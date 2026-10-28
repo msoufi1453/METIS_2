@@ -24,7 +24,9 @@ seeds: [0, 3]
 arms:
   - {name: incumbent}   # METIS v1: XGBoost ensemble (200 random-search draws, 20 members), UCB, top-k
   - {name: linear, surrogate: {type: linear_ensemble}}
-  - {name: tabpfn35, surrogate: {type: tabpfn, version: v3.5, n_estimators: 8, device: auto}}
+  # TabPFN-3.5 with METIS's v1 schedule: the comparison in docs/REPLAY.md. Explicit, because
+  # TabPFN arms without a schedule now take TabPFN's tuned one (amendment 4).
+  - {name: tabpfn35, surrogate: {type: tabpfn, version: v3.5, n_estimators: 8, device: auto}, schedule: {type: legacy}}
   - {name: random, selector: {type: random}}   # context: how easy is each pool without a model?
 pilot:
   seeds: [0, 1]

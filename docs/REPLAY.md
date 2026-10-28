@@ -76,6 +76,49 @@ The main benchmark uses TabPFN v2 (`--extra tabpfn`, package 2.0.9). The two ext
 cannot be installed together, and `TabPFNSurrogate` refuses to run if the installed
 package does not match the arm's `version`.
 
+## TabPFN's own exploration schedule (amendment 4)
+
+The results below show why TabPFN needs its own schedule: METIS's exploration weights
+were set for XGBoost, whose uncertainty is far too small, so with the same weights the
+honest-uncertainty TabPFN explores much more. `experiments/tabpfn_schedule_tune.yaml`
+therefore tunes TabPFN-3.5's schedule on these four datasets; XGBoost keeps its own, and
+the linear model has no uncertainty for a schedule to act on.
+
+Candidates: 10 linear "exploitation ramps". Each round, exploitation = min(1, slope ×
+(round − 1) / 9) and exploration = 1 − exploitation, and UCB scores
+exploitation × prediction + exploration × uncertainty. Every ramp starts mostly exploring
+and eases into exploitation:
+
+| slope | 0.8 | 0.9 | 1.0 | 1.125 | 1.3 | 1.5 | 1.8 | 2.25 | 3.0 | 4.5 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| exploitation in round 2 | 9% | 10% | 11% | 13% | 14% | 17% | 20% | 25% | 33% | 50% |
+| only exploits from round | never (80% at the end) | never (90%) | 10 | 9 | 8 | 7 | 6 | 5 | 4 | 3 |
+
+The winner is the ramp with the lowest mean `auc_norm_regret` (how fast good recipes are
+found; every arm finds the best recipe eventually here), datasets weighted equally, over
+5 seeds. METIS's v1 schedule runs alongside as a reference but cannot win. That is 220
+campaigns, about 30 minutes on an RTX 5090 laptop GPU (12 of them are reused from the
+replay run if its results are on the machine):
+
+```bash
+uv sync --extra tabpfn35 --extra cu128
+python -m metis_bench tune experiments/tabpfn_schedule_tune.yaml --jobs 1
+```
+
+It writes `experiments/tuned/tabpfn_schedule.json` and a report in
+`results/tabpfn_schedule_tune/tuning/` (`tuning_report.md`, `tuning_curve.png`). Commit the
+JSON file: from then on every TabPFN arm that sets no schedule uses it, on every machine,
+including `surr_tabpfn` in the synthetic study. Confirmatory runs refuse to start without
+it (pilots fall back to the v1 schedule and say so). The replay's own `tabpfn35` arm keeps
+METIS's schedule explicitly, so the comparison below is unchanged.
+
+Caveats for the tuned schedule: it is chosen on these replay pools, which were collected
+by optimisers and are half measured by round 10, so they reward exploiting; on the
+synthetic landscapes the best ramp may be slower. The report flags a winner at the edge
+of the grid. The tuning data are also the source of the `borkowski` and `pure_pool`
+oracles, so TabPFN's synthetic-study result on those two problems is not independent of
+the tuning.
+
 ## Data note: CETCH `Yield_all_data.csv`
 
 The repository's `Examples/CETCH/Data/Yield_optimization/Yield_all_data.csv` stacks the

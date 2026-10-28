@@ -61,6 +61,11 @@ uv run --extra tabpfn --extra cpu python -m metis_bench report experiments/phase
 Order (each step needs the previous one's output):
 
 ```bash
+# Before Phase 2, once, on a GPU machine with TabPFN-3.5 (`uv sync --extra tabpfn35 --extra cu128`):
+# TabPFN's own exploration schedule (amendment 4, docs/REPLAY.md). Commit the output, so
+# every machine runs TabPFN arms with it; confirmatory runs refuse to start without it.
+tune   experiments/tabpfn_schedule_tune.yaml   # -> experiments/tuned/tabpfn_schedule.json
+
 # Phase 2: the three interventions against the incumbent
 run experiments/phase2_init.yaml;        report experiments/phase2_init.yaml
 run experiments/phase2_import.yaml;      report experiments/phase2_import.yaml
