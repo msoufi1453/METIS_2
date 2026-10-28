@@ -75,8 +75,11 @@ def _resolve_arms(cfg):
 def load(path, pilot=False):
     cfg = yaml.safe_load(pathlib.Path(path).read_text())
     cfg.setdefault('settings', {})
+    # The file's `pilot` block holds overrides; cfg['pilot'] itself is only ever True or
+    # False, so reports and tuning files never mistake a confirmatory run for a pilot.
+    over = cfg.pop('pilot', None) or {}
+    cfg['pilot'] = bool(pilot)
     if pilot:
-        over = cfg.get('pilot', {})
         cfg['name'] = cfg['name'] + '-pilot'
         cfg['seeds'] = over.get('seeds', cfg.get('seeds'))
         cfg['settings'] = {**cfg['settings'], **over.get('settings', {})}

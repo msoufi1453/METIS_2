@@ -105,15 +105,38 @@ result can be reweighted or filtered by realism.
 
 ## 4. Compute
 
-Per-campaign cost (estimates; only the pilot settings were timed): the full incumbent
-(RandomizedSearchCV, 200 draws x 5 folds every round) about 8 CPU-minutes, XGBoost with
-fantasy batches about 16, the GP about 1.5, TabPFN on CPU about 40 (single-threaded). The
-confirmatory design after amendment 3 (20 seeds, 56 test problems, shared identical
-campaigns, a smaller tuning grid, a 30-problem realistic-noise ablation) is roughly
-2,700 laptop-core-hours, plus the TabPFN arm (1,120 campaigns) on a GPU.
+Phase 2 is 15,640 distinct campaigns (after sharing identical ones): 10,040 XGBoost,
+3,360 GP, 1,120 TabPFN and 1,120 random search.
 
-Time one full-fidelity incumbent campaign on the target hardware before trusting these
-numbers: everything else scales from it.
+Per-campaign cost. The first estimates came from pilot settings: the full incumbent
+(RandomizedSearchCV, 200 draws x 5 folds every round) about 8 CPU-minutes, XGBoost with
+fantasy batches about 16, the GP about 1.5. The measured-data replay (docs/REPLAY.md) then
+timed the full incumbent at 16-38 CPU-minutes per campaign, so plan on 15-30 per synthetic
+campaign: Phase 2's CPU arms are then about 2,600-5,100 core-hours (the earlier
+2,700-core-hour figure for the whole amended design was based on the 8-minute guess).
+TabPFN-3.5 on an RTX 5090 laptop GPU took 0.5-0.8 s per round in the replay; a synthetic
+round scores about 10 times more recipes (10,000 candidates and 1,000 test recipes), so
+expect about 1 minute per campaign, roughly a day for Phase 2's 1,120. Without the GPU
+it is 5-6 times slower, which is why TabPFN runs stop when PyTorch sees no GPU
+(`--allow-cpu-tabpfn` overrides).
+
+Time a few full-fidelity campaigns on the target hardware before trusting these numbers
+(every finished campaign prints its seconds): everything else scales from them.
+
+**One Windows machine with a GPU.** `scripts/run_pipeline.ps1` runs everything in order
+on one machine: CPU arms in parallel (`-Jobs`, default all cores but two) while TabPFN
+campaigns take turns on the GPU (`-GpuJobs`, default 1). It loads the committed oracles
+first, stops if the tuned TabPFN schedule is missing, and can be re-run after an
+interruption (finished campaigns are skipped):
+
+```powershell
+uv sync --link-mode copy --extra tabpfn35 --extra cu128     # once; cu126 for RTX 40 and older
+powershell -ExecutionPolicy Bypass -File scripts\run_pipeline.ps1 -Phase 2
+powershell -ExecutionPolicy Bypass -File scripts\run_pipeline.ps1 -Phase 3     # after reviewing Phase 2
+```
+
+Every result records the code fingerprint (`environment.code_hash`, for machines without
+command-line git) and the device TabPFN ran on (`environment.surrogate.device_used`).
 
 **Identical campaigns run once.** A campaign's result depends only on its resolved arm,
 problem, seed and settings, never on the experiment or the arm's name. Results are
@@ -130,7 +153,7 @@ together before `report`:
 # GPU machine (NVIDIA up to RTX 40 series; use cu128 for RTX 50 series)
 uv sync --extra tabpfn35 --extra cu126
 uv run --extra tabpfn35 --extra cu126 python -m metis_bench oracles
-uv run --extra tabpfn35 --extra cu126 python -m metis_bench run experiments/phase2_surrogates.yaml --arms surr_tabpfn --jobs 2
+uv run --extra tabpfn35 --extra cu126 python -m metis_bench run experiments/phase2_surrogates.yaml --arms surr_tabpfn --jobs 2 --gpu-jobs 2
 
 # CPU workers
 uv run --extra tabpfn35 --extra cpu python -m metis_bench run experiments/phase2_surrogates.yaml --skip-arms surr_tabpfn --jobs 8
@@ -139,8 +162,8 @@ uv run --extra tabpfn35 --extra cpu python -m metis_bench run experiments/phase2
 ```
 
 Check the GPU is used: `uv run --extra tabpfn35 --extra cu126 python -c "import torch; print(torch.cuda.is_available())"`
-should print `True`. Several TabPFN workers can share one GPU if its memory allows (start
-with `--jobs 2` and watch `nvidia-smi`). If TabPFN wins Phase 2, the Phase 3 arms that
+should print `True`. Several TabPFN workers can share one GPU if its memory allows (`--gpu-jobs`; start
+with 2 and watch `nvidia-smi`). If TabPFN wins Phase 2, the Phase 3 arms that
 use it need the GPU machine too.
 
 ## 5. Extending

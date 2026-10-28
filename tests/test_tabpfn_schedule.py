@@ -95,15 +95,17 @@ def test_tune_command_end_to_end(tmp_path):
             'base_arm': {'surrogate': {'type': 'gp_matern', 'n_restarts': 0}},
             'candidates': [{'type': 'exploit_ramp', 'slope': [1.0, 4.5]}],
             'reference_arms': [{'name': 'v1_schedule', 'schedule': {'type': 'legacy'}}],
-            'problems': {'measured': [{'name': 'borkowski', 'settings': {'batch_size': 10}}]},
-            'settings': {'n_rounds': 3, 'pool_size': 100000}, 'seeds': [0, 2]}
+            'problems': {'measured': [{'name': 'borkowski', 'settings': {'batch_size': 10}},
+                                     {'name': 'cetch_yield', 'settings': {'batch_size': 10}}]},  # a name with a space
+            'settings': {'n_rounds': 3, 'pool_size': 100000}, 'seeds': [0, 2],
+            'pilot': {'seeds': [0, 1]}}   # a pilot block must not mark the real run as a pilot
     path = tmp_path / 'ramp_tune.yaml'
     path.write_text(yaml.safe_dump(spec))
     assert main(['tune', str(path), '--out', str(tmp_path / 'results')]) == 0
     tuned = json.loads(out.read_text())
     assert tuned['part'] == 'schedule' and tuned['fragment']['type'] == 'exploit_ramp'
-    assert tuned['metric'] == 'auc_norm_regret' and tuned['winner'] != 'v1_schedule'
+    assert tuned['metric'] == 'auc_norm_regret' and tuned['winner'] != 'v1_schedule' and tuned['pilot'] is False
     report = tmp_path / 'results' / 'ramp_tune' / 'tuning'
     text = (report / 'tuning_report.md').read_text(encoding='utf-8')
-    assert '(winner)' in text and 'reference' in text and 'Borkowski' in text
+    assert '(winner)' in text and 'reference' in text and 'Borkowski' in text and 'CETCH yield' in text
     assert (report / 'tuning_curve.png').stat().st_size > 0

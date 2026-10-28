@@ -1,0 +1,91 @@
+{
+ "part": "schedule",
+ "fragment": {
+  "type": "exploit_ramp",
+  "slope": 4.5
+ },
+ "winner": "schedule_exploit_ramp_slope4.5",
+ "pilot": false,
+ "experiment": "tabpfn_schedule_tune",
+ "metric": "auc_norm_regret",
+ "seeds": [
+  0,
+  5
+ ],
+ "base_arm": {
+  "surrogate": {
+   "type": "tabpfn",
+   "version": "v3.5",
+   "n_estimators": 8,
+   "device": "auto"
+  }
+ },
+ "table": [
+  {
+   "arm": "tabpfn_v1_schedule",
+   "mean": 0.07341,
+   "sem": 0.00881,
+   "count": 4
+  },
+  {
+   "arm": "schedule_exploit_ramp_slope4.5",
+   "mean": 0.07589,
+   "sem": 0.01391,
+   "count": 4
+  },
+  {
+   "arm": "schedule_exploit_ramp_slope2.25",
+   "mean": 0.08251,
+   "sem": 0.01191,
+   "count": 4
+  },
+  {
+   "arm": "schedule_exploit_ramp_slope3.0",
+   "mean": 0.08304,
+   "sem": 0.01505,
+   "count": 4
+  },
+  {
+   "arm": "schedule_exploit_ramp_slope1.8",
+   "mean": 0.09327,
+   "sem": 0.01178,
+   "count": 4
+  },
+  {
+   "arm": "schedule_exploit_ramp_slope1.3",
+   "mean": 0.09496,
+   "sem": 0.01379,
+   "count": 4
+  },
+  {
+   "arm": "schedule_exploit_ramp_slope1.0",
+   "mean": 0.09568,
+   "sem": 0.01343,
+   "count": 4
+  },
+  {
+   "arm": "schedule_exploit_ramp_slope1.5",
+   "mean": 0.09604,
+   "sem": 0.01266,
+   "count": 4
+  },
+  {
+   "arm": "schedule_exploit_ramp_slope1.125",
+   "mean": 0.09888,
+   "sem": 0.01464,
+   "count": 4
+  },
+  {
+   "arm": "schedule_exploit_ramp_slope0.8",
+   "mean": 0.10006,
+   "sem": 0.01396,
+   "count": 4
+  },
+  {
+   "arm": "schedule_exploit_ramp_slope0.9",
+   "mean": 0.10149,
+   "sem": 0.0157,
+   "count": 4
+  }
+ ]
+}

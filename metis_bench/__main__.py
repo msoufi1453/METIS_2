@@ -7,6 +7,9 @@
     python -m metis_bench replay experiments/replay_paper.yaml      # paper-style figures for measured-data runs
     python -m metis_bench tasks experiments/phase2_surrogates.yaml --shard 3/40   # list one shard (for clusters)
     python -m metis_bench run experiments/phase2_surrogates.yaml --arms surr_tabpfn  # one arm only (e.g. on a GPU)
+    python -m metis_bench run experiments/phase2_surrogates.yaml --jobs 14 --gpu-jobs 1  # CPU arms and TabPFN together
+
+TabPFN runs stop if PyTorch sees no GPU (``--allow-cpu-tabpfn`` overrides).
 """
 import argparse
 import json
@@ -14,6 +17,25 @@ import pathlib
 import sys
 
 from . import experiments
+
+
+def _gpu_problem():
+    """Why TabPFN campaigns cannot use a GPU here, or None if they can.
+
+    TabPFN with ``device: auto`` silently falls back to the CPU, several times slower,
+    so runs stop instead of losing days. ``--allow-cpu-tabpfn`` overrides.
+    """
+    try:
+        import torch
+    except ImportError:
+        return 'TabPFN arms need PyTorch: uv sync --extra tabpfn35 --extra cu128 (or cu126, cpu).'
+    if torch.cuda.is_available():
+        print('TabPFN campaigns run on {}'.format(torch.cuda.get_device_name(0)))
+        return None
+    return ('PyTorch sees no CUDA GPU (installed: torch {}), so TabPFN would run on the CPU, several times slower.\n'
+            'Check: the laptop is plugged in and on a performance power mode; `nvidia-smi` lists the GPU; the '
+            'environment has the CUDA build (uv sync --link-mode copy --extra tabpfn35 --extra cu128).\n'
+            'To run on the CPU anyway, add --allow-cpu-tabpfn.'.format(torch.__version__))
 
 
 def main(argv=None):
@@ -44,6 +66,10 @@ def main(argv=None):
         p.add_argument('--shard', default=None, help='i/n: run only every n-th task starting at i (0-based)')
         p.add_argument('--arms', default=None, help='comma-separated arm names to run (others skipped)')
         p.add_argument('--skip-arms', default=None, help='comma-separated arm names to leave out')
+        p.add_argument('--gpu-jobs', type=int, default=1,
+                       help='TabPFN campaigns running at once on the GPU, next to --jobs CPU campaigns')
+        p.add_argument('--allow-cpu-tabpfn', action='store_true',
+                       help='run TabPFN arms even when PyTorch sees no GPU (several times slower)')
     args = parser.parse_args(argv)
 
     if args.command == 'oracles':
@@ -87,8 +113,9 @@ def main(argv=None):
         print(write_report(cfg, pathlib.Path(args.out) / cfg['name']))
         return 0
     if args.command == 'replay':
-        from .replay import write_replay
-        print(write_replay(cfg, pathlib.Path(args.out) / cfg['name']))
+        from .replay import write_replay, write_schedule_tuning
+        write = write_schedule_tuning if cfg.get('tuning', {}).get('part') == 'schedule' else write_replay
+        print(write(cfg, pathlib.Path(args.out) / cfg['name']))
         return 0
     tasks = experiments.tasks(cfg, args.out)
     # Split an experiment across machines by arm, e.g. TabPFN on a GPU laptop and the rest
@@ -107,8 +134,13 @@ def main(argv=None):
         for t in tasks:
             print(t[4])
         return 0
-    from .campaign import run_tasks
-    failures = run_tasks(tasks, jobs=args.jobs)
+    from .campaign import run_tasks, uses_gpu
+    if not args.allow_cpu_tabpfn and any(uses_gpu(t) and not pathlib.Path(t[4]).exists() for t in tasks):
+        problem = _gpu_problem()
+        if problem:
+            print(problem, file=sys.stderr)
+            return 2
+    failures = run_tasks(tasks, jobs=args.jobs, gpu_jobs=args.gpu_jobs)
     for path, error in failures:
         print('FAILED', path, '\n', error, file=sys.stderr)
     if args.command == 'tune' and not failures:

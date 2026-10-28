@@ -139,7 +139,8 @@ dmypy.json
 # Cython debug symbols
 cython_debug/
 # Benchmark artefacts (oracle caches, campaign results, reports)
-artifacts/
+artifacts/*
+!artifacts/oracles/
 results/
 # Pilot tuning outputs (the real tuned files in experiments/tuned/ are committed)
 experiments/tuned/*-pilot.json

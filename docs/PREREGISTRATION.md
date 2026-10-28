@@ -70,7 +70,9 @@ from.)
   settings as the ensemble.
 * Exploration: UCB `1 * mean + beta * std`, with the v1 schedule beta = 1.41 for rounds
   2 and 3, 1.0 for rounds 4 to 7, and 0.5 for rounds 8 to 10 unless the arm says otherwise.
-  TabPFN arms that set no schedule use TabPFN's own tuned schedule instead (amendment 4).
+  TabPFN arms that set no schedule use TabPFN's own tuned schedule instead (amendment 4):
+  `exploit_ramp` with slope 4.5, i.e. UCB `0.5 * mean + 0.5 * std` in round 2 and the mean
+  alone from round 3 (tuned 2026-10-28, before any confirmatory campaign).
 * **Seeds**: 20 per (problem, arm), seeds 0 to 19 (amendment 3; was 50). Tuning uses
   10 seeds, 1000 to 1009 (was 20). A seed fixes the initial design (per
   initialiser type), the imported data, and every noise draw, so arms are paired

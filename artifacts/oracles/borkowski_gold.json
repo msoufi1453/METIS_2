@@ -1,0 +1,38 @@
+{
+ "id": "borkowski",
+ "f_max": 2.6156601905822754,
+ "x_max": [
+  1,
+  3,
+  0,
+  3,
+  0,
+  1,
+  2,
+  3,
+  3,
+  0,
+  3
+ ],
+ "max_is_exact": true,
+ "meta": {
+  "source": "Borkowski et al. 2020 via METIS Examples/Cell_Free_System_Simulation",
+  "n_data": 1017,
+  "n_factors": 11,
+  "gold_params": {
+   "objective": "reg:squarederror",
+   "n_estimators": 500,
+   "learning_rate": 0.01,
+   "max_depth": 6,
+   "min_child_weight": 1,
+   "subsample": 0.8
+  },
+  "best_iteration": 495,
+  "holdout_r2": 0.9183344855584724,
+  "cv5_r2_mean": 0.9294743111735144,
+  "cv5_r2_sd": 0.011587085280998466,
+  "continuous_equivalent": true,
+  "data_max_yield": 3.3227,
+  "grid_points_enumerated": 4194304
+ }
+}

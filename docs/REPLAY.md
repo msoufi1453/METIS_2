@@ -98,8 +98,9 @@ and eases into exploitation:
 The winner is the ramp with the lowest mean `auc_norm_regret` (how fast good recipes are
 found; every arm finds the best recipe eventually here), datasets weighted equally, over
 5 seeds. METIS's v1 schedule runs alongside as a reference but cannot win. That is 220
-campaigns, about 30 minutes on an RTX 5090 laptop GPU (12 of them are reused from the
-replay run if its results are on the machine):
+campaigns (12 of them are reused from the replay run if its results are on the machine):
+about 30 minutes on an RTX 5090 laptop GPU at full speed; the actual run took 2.5 hours
+of compute because TabPFN ran 5-6 times slower than in the replay (see the result below):
 
 ```bash
 uv sync --extra tabpfn35 --extra cu128
@@ -119,6 +120,43 @@ synthetic landscapes the best ramp may be slower. The report flags a winner at t
 of the grid. The tuning data are also the source of the `borkowski` and `pure_pool`
 oracles, so TabPFN's synthetic-study result on those two problems is not independent of
 the tuning.
+
+### Result (2026-10-28): slope 4.5
+
+All 220 campaigns were checked before use: configuration fingerprints identical to this
+repository's, every arm starting from the same round-1 recipes per dataset and seed (the
+same as the replay's), yields matching the data, and the logged exploitation and
+exploration weights matching each ramp in every round.
+
+Figures: [the schedules](replay/schedule/schedules.png),
+[each ramp against METIS's schedule](replay/schedule/schedule_heatmap.png),
+[tuning curve](replay/schedule/tuning_curve.png),
+[best recipe so far](replay/schedule/schedule_best_so_far.png). Tables:
+[tuning report](replay/schedule/tuning_report.md),
+[winner vs METIS's schedule](replay/schedule/schedule_summary.md).
+
+* **Greedier ramps did better.** The mean regret falls almost steadily with the slope:
+  the slow ramps (0.8 to 1.8, exploitation 9-20% in round 2) are 0.017-0.026 worse than the
+  winner (2.4-4 standard errors), and 2.25, 3 and 4.5 are within 0.007 of each other. The winner, **slope 4.5**
+  (50% exploitation in round 2, pure exploitation from round 3), is at the edge of the
+  grid: an even greedier schedule was not tried.
+* **It ties METIS's own schedule** overall: mean regret 0.076 against 0.073, difference
+  +0.002 (standard error 0.006); best recipe found in 20 of 20 runs by both, in round 3.8
+  against 3.6 on average. It is better on Borkowski (−0.024, about 3 standard errors) and
+  slightly better on CETCH yield, worse on PURE (+0.029, about 2 standard errors) and CETCH
+  efficiency (+0.011). Both start with roughly half exploitation in round 2; after that the
+  ramp only exploits while METIS's schedule keeps some exploration, which helps on the
+  69-factor PURE and costs on the 11-factor Borkowski.
+* So the replay does not show that TabPFN needs a different schedule from XGBoost's: the
+  heavy early exploration of the slow ramps is clearly worse, and the best ramp and METIS's
+  schedule are equivalent on average. As decided, TabPFN arms use the winner
+  (`experiments/tuned/tabpfn_schedule.json`); switching TabPFN back to METIS's schedule is a
+  one-line change of that file's `fragment` to `{"type": "legacy"}`.
+* **Speed.** The run took 2.5 hours of compute (median 37 s per campaign) where the replay
+  took 6-10 s per campaign: the same TabPFN setup ran 5-6 times slower per round (2.5-5.8 s
+  against 0.5-0.8 s), consistent with TabPFN not using the GPU (or a throttled one) during
+  this run. Runs now stop when PyTorch sees no GPU, and every result records the device
+  TabPFN used.
 
 ## Data note: CETCH `Yield_all_data.csv`
 

@@ -87,4 +87,9 @@ class TabPFNSurrogate(Surrogate):
         return Prediction(mean=np.concatenate(means), std=np.concatenate(stds))
 
     def describe(self):
-        return {'name': self.name, 'version': self.version, 'n_estimators': self.n_estimators}
+        out = {'name': self.name, 'version': self.version, 'n_estimators': self.n_estimators}
+        model = getattr(self, 'model_', None)
+        if model is not None:   # the device the model actually ran on, e.g. cuda:0 or cpu
+            devices = getattr(model, 'devices_', None) or getattr(model, 'device_', None)
+            out['device_used'] = str(devices[0] if isinstance(devices, (tuple, list)) else devices)
+        return out

@@ -9,6 +9,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 JOBS=${JOBS:-8}
+GPU_JOBS=${GPU_JOBS:-1}   # TabPFN campaigns sharing the GPU at once
 FLAG=""
 SUFFIX=""
 if [[ "${PILOT:-0}" == "1" ]]; then FLAG="--pilot"; SUFFIX="-pilot"; fi
@@ -22,8 +23,11 @@ if [[ "${PILOT:-0}" != "1" && ! -f experiments/tuned/tabpfn_schedule.json ]]; th
   exit 1
 fi
 
+# Load the committed real-data oracles once, so parallel workers never build them at the same time.
+bench oracles
+
 for exp in phase2_init phase2_import phase2_surrogates phase2_batch; do
-  bench run "experiments/$exp.yaml" $FLAG --jobs "$JOBS"
+  bench run "experiments/$exp.yaml" $FLAG --jobs "$JOBS" --gpu-jobs "$GPU_JOBS"
   bench report "experiments/$exp.yaml" $FLAG
 done
 
@@ -33,13 +37,13 @@ if [[ "${PILOT:-0}" == "1" ]]; then DECIDE_FLAGS="$FLAG --ignore-significance"; 
 bench decide $DECIDE_FLAGS \
   "results/phase2_init$SUFFIX/report" "results/phase2_surrogates$SUFFIX/report" "results/phase2_batch$SUFFIX/report"
 
-bench tune experiments/phase3_schedule_tune.yaml $FLAG --jobs "$JOBS"
-bench run experiments/phase3_schedule.yaml $FLAG --jobs "$JOBS"
+bench tune experiments/phase3_schedule_tune.yaml $FLAG --jobs "$JOBS" --gpu-jobs "$GPU_JOBS"
+bench run experiments/phase3_schedule.yaml $FLAG --jobs "$JOBS" --gpu-jobs "$GPU_JOBS"
 bench report experiments/phase3_schedule.yaml $FLAG
 
-bench tune experiments/phase3_hparams_tune.yaml $FLAG --jobs "$JOBS"
-bench run experiments/phase3_hparams.yaml $FLAG --jobs "$JOBS"
+bench tune experiments/phase3_hparams_tune.yaml $FLAG --jobs "$JOBS" --gpu-jobs "$GPU_JOBS"
+bench run experiments/phase3_hparams.yaml $FLAG --jobs "$JOBS" --gpu-jobs "$GPU_JOBS"
 bench report experiments/phase3_hparams.yaml $FLAG
 
-bench run experiments/phase3_ablation.yaml $FLAG --jobs "$JOBS"
+bench run experiments/phase3_ablation.yaml $FLAG --jobs "$JOBS" --gpu-jobs "$GPU_JOBS"
 bench report experiments/phase3_ablation.yaml $FLAG

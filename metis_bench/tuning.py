@@ -137,8 +137,8 @@ def tuning_report(cfg, runs, winner, metric, exclude, out_dir):
                   '']
     lines += ['| candidate | role | ' + ' | '.join(names[p] for p in problems) + ' | mean | diff. to winner | rank |',
               '|---|---|' + '---|' * len(problems) + '---|---|---|']
-    for row in table.itertuples(index=False):
-        row = row._asdict()
+    # Records, not itertuples: problem names such as "CETCH yield" are not valid field names.
+    for row in table.to_dict(orient='records'):
         cells = ['{:.3f}'.format(row[names[p]]) for p in problems]
         star = ' (winner)' if row['arm'] == winner else ''
         lines.append('| {}{} | {} | {} | {:.3f} | {:+.3f} ({:.3f}) | {} |'.format(

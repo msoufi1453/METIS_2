@@ -12,6 +12,7 @@ initialisers that share a type, the imported data, and every noise draw (plate e
 and per-well noise are drawn per round in a fixed order). Paired arms therefore differ
 only through the recipes they choose.
 """
+import functools
 import hashlib
 import json
 import os
@@ -47,6 +48,23 @@ def _git_commit():
                               cwd=pathlib.Path(__file__).parent).stdout.strip()
     except OSError:
         return None
+
+
+@functools.lru_cache(maxsize=1)
+def _code_hash():
+    """Fingerprint of the metis and metis_bench sources, for machines without command-line git."""
+    digest = hashlib.sha256()
+    root = pathlib.Path(__file__).resolve().parents[1]
+    for path in sorted([*root.joinpath('metis').rglob('*.py'), *root.joinpath('metis_bench').rglob('*.py')]):
+        digest.update(path.relative_to(root).as_posix().encode())
+        digest.update(path.read_bytes().replace(b'\r\n', b'\n'))
+    return digest.hexdigest()[:16]
+
+
+def uses_gpu(task):
+    """A TabPFN campaign meant for a GPU (device ``auto`` or ``cuda``)."""
+    surrogate = task[1].get('surrogate') or {}
+    return surrogate.get('type') == 'tabpfn' and surrogate.get('device', 'cpu') != 'cpu'
 
 
 def run_campaign(problem_cfg, arm_cfg, seed, settings=None):
@@ -96,6 +114,7 @@ def run_campaign(problem_cfg, arm_cfg, seed, settings=None):
     selector = arm_lib.make_selector(arm['selector'], np.random.default_rng(s_model.spawn(1)[0]))
     use_noise = bool(arm.get('use_noise'))
     rounds_log = []
+    surrogate = None
     # Best measured yield after each completed round, for adaptive schedules.
     history = [float(np.max(log['mean']))] if log['mean'] else []
     for r in range(first_guided, settings.n_rounds + 1):
@@ -153,7 +172,9 @@ def run_campaign(problem_cfg, arm_cfg, seed, settings=None):
         'trajectory': trajectory, 'rounds': rounds_log,
         'endpoints': metrics.endpoints(trajectory, oracle.f_max),
         'evaluated': log,
-        'environment': {'git_commit': _git_commit(), 'python': platform.python_version()},
+        'environment': {'git_commit': _git_commit(), 'code_hash': _code_hash(), 'python': platform.python_version(),
+                        # The last round's surrogate, e.g. the device TabPFN actually ran on.
+                        'surrogate': surrogate.describe() if hasattr(surrogate, 'describe') else None},
         'elapsed_s': time.time() - t_start,
     }
 
@@ -240,17 +261,31 @@ def _jsonable(o):
     raise TypeError(type(o))
 
 
+THREAD_VARS = ('OMP_NUM_THREADS', 'MKL_NUM_THREADS', 'OPENBLAS_NUM_THREADS', 'NUMEXPR_NUM_THREADS')
+
+
 def _limit_threads():
-    for var in ('OMP_NUM_THREADS', 'MKL_NUM_THREADS', 'OPENBLAS_NUM_THREADS', 'NUMEXPR_NUM_THREADS'):
+    for var in THREAD_VARS:
         os.environ[var] = '1'
 
 
-def run_tasks(tasks, jobs=1, progress=print):
+def _gpu_worker_init(threads=4):
+    """GPU workers keep a few CPU threads for TabPFN's preprocessing (CPU workers get one each).
+
+    Runs before the worker imports torch, which reads the setting at import.
+    """
+    for var in THREAD_VARS:
+        os.environ[var] = str(threads)
+
+
+def run_tasks(tasks, jobs=1, progress=print, gpu_jobs=1):
     """Run (problem_cfg, arm_cfg, seed, settings_dict, path) tasks.
 
     Skips tasks whose file exists, copies tasks whose identical campaign was already
     computed (by any experiment, see ``task_key``), and computes each remaining distinct
-    campaign once.
+    campaign once. With ``jobs > 1``, GPU campaigns (``uses_gpu``) run in their own pool
+    of ``gpu_jobs`` workers next to the ``jobs`` CPU workers, so one GPU is never shared
+    by dozens of processes.
     """
     todo = [t for t in tasks if not pathlib.Path(t[4]).exists()]
     groups, reused = {}, 0
@@ -281,8 +316,10 @@ def run_tasks(tasks, jobs=1, progress=print):
             finish(i, job, _worker(job))
         return failures
     _limit_threads()
-    with ProcessPoolExecutor(max_workers=jobs) as pool:
-        futures = {pool.submit(_worker, job): job for job in jobs_list}
+    # Workers start on first use, so the GPU pool costs nothing when there is no GPU work.
+    with ProcessPoolExecutor(max_workers=jobs) as pool, \
+            ProcessPoolExecutor(max_workers=max(gpu_jobs, 1), initializer=_gpu_worker_init) as gpu_pool:
+        futures = {(gpu_pool if uses_gpu(job[0]) else pool).submit(_worker, job): job for job in jobs_list}
         for i, fut in enumerate(as_completed(futures), 1):
             finish(i, futures[fut], fut.result())
     return failures

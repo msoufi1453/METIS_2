@@ -304,6 +304,140 @@ def _paired_lines(cfg, runs, datasets):
     return lines
 
 
+def write_schedule_tuning(cfg, exp_dir):
+    """Figures and a table for a schedule tuning on measured data (experiments/tabpfn_schedule_tune.yaml).
+
+    Writes to ``<exp_dir>/replay/``: ``schedules.png`` (what each candidate does per round),
+    ``schedule_heatmap.png`` (each candidate against the reference schedule, per dataset),
+    ``schedule_best_so_far.png`` and ``schedule_summary.md``.
+    """
+    from metis.schedules import make
+    from matplotlib.colors import LinearSegmentedColormap
+    from .report import CONTEXT
+
+    exp_dir = pathlib.Path(exp_dir)
+    out = exp_dir / 'replay'
+    out.mkdir(parents=True, exist_ok=True)
+    points, _, runs = collect(exp_dir)
+    references = [a['name'] for a in cfg.get('reference_arms', [])]
+    ref = references[0]
+    candidates = [a for a in cfg['arms'] if a['name'] not in references]
+    labels = {a['name']: '{:g}'.format(a['schedule']['slope']) if 'slope' in a['schedule'] else a['name']
+              for a in candidates}
+    tuned = json.loads(pathlib.Path(cfg['tuning']['output']).read_text()) if pathlib.Path(
+        cfg['tuning']['output']).exists() else {}
+    winner = tuned.get('winner', candidates[-1]['name'])
+    datasets = _order(runs.dataset, list(DATASET_LABELS))
+    n_rounds = int(points['round'].max())
+    rounds = np.arange(2, n_rounds + 1)
+
+    # 1. What the schedules do: the exploitation share of the UCB score each round.
+    plt, fig, ax = _figure(figsize=(7.4, 4.0))
+    for a in candidates:
+        e = [make(a['schedule']).weights(r, n_rounds)[0] for r in rounds]
+        if a['name'] != winner:
+            ax.plot(rounds, e, color=CONTEXT, lw=1.2, zorder=2)
+    ax.plot([], [], color=CONTEXT, lw=1.2, label='other ramps (slopes {})'.format(
+        ', '.join(labels[a['name']] for a in candidates if a['name'] != winner)))
+    ref_cfg = next(a for a in cfg['arms'] if a['name'] == ref)['schedule']
+    ref_e = [1.0 / (1.0 + make(ref_cfg)(r, n_rounds)) for r in rounds]   # mean + b*std ranks like (mean + b*std)/(1+b)
+    ax.step(rounds, ref_e, where='mid', color=INK_2, lw=2, ls=(0, (4, 3)), label="METIS's schedule (equivalent share)")
+    win_cfg = next(a for a in candidates if a['name'] == winner)['schedule']
+    ax.plot(rounds, [make(win_cfg).weights(r, n_rounds)[0] for r in rounds], color=ARM_COLORS['tabpfn35'], lw=2.5,
+            marker='o', ms=5, label='winner: slope {}'.format(labels[winner]), zorder=4)
+    _style(ax)
+    ax.set_ylim(0, 1.05)
+    ax.set_xticks(rounds)
+    ax.set_xlabel('Round')
+    ax.set_ylabel('exploitation share of the score\n(0 = uncertainty only, 1 = prediction only)', fontsize=8)
+    ax.set_title('The 10 candidate schedules: exploitation rises each round, exploration takes the rest',
+                 fontsize=10, color=INK, loc='left')
+    ax.legend(frameon=False, fontsize=8, labelcolor=INK_2, loc='lower right')
+    fig.tight_layout()
+    fig.savefig(out / 'schedules.png', dpi=150, facecolor=SURFACE)
+    plt.close(fig)
+
+    # 2. Heat map: each candidate's mean AUC regret minus the reference's, per dataset.
+    auc = runs.groupby(['dataset', 'arm']).auc_norm_regret.mean().unstack('arm')
+    names = [a['name'] for a in candidates]
+    diff = auc[names].sub(auc[ref], axis=0).loc[datasets]
+    diff.loc['mean'] = diff.mean()
+    lim = float(np.nanmax(np.abs(diff.to_numpy()))) or 1.0
+    cmap = LinearSegmentedColormap.from_list('diverging', [PALETTE[0], '#f2f1ed', PALETTE[7]])
+    plt, fig, ax = _figure(figsize=(9.2, 3.6))
+    ax.imshow(diff.to_numpy(), cmap=cmap, vmin=-lim, vmax=lim, aspect='auto')
+    for i in range(diff.shape[0]):
+        for j in range(diff.shape[1]):
+            v = diff.iat[i, j]
+            ax.text(j, i, '{:+.3f}'.format(v).replace('-', '−'), ha='center', va='center', fontsize=7.5,
+                    color='white' if abs(v) > 0.6 * lim else INK, fontweight='bold' if names[j] == winner else 'normal')
+    ax.set_xticks(range(len(names)))
+    ax.set_xticklabels([labels[n] + ('\nwinner' if n == winner else '') for n in names], fontsize=8, color=INK_2)
+    ax.set_yticks(range(diff.shape[0]))
+    ylabels = ['{} ({:.3f})'.format(DATASET_LABELS.get(d, d), auc.loc[d, ref]) for d in datasets]
+    ax.set_yticklabels(ylabels + ['mean of the 4 ({:.3f})'.format(auc.loc[datasets, ref].mean())], fontsize=8,
+                       color=INK)
+    ax.axhline(len(datasets) - 0.5, color=SURFACE, lw=3)
+    for side in ax.spines.values():
+        side.set_visible(False)
+    ax.tick_params(length=0)
+    ax.set_xlabel('slope of the exploitation ramp (higher = pure exploitation sooner)', fontsize=8, color=INK_2)
+    ax.set_title("Each ramp's average regret minus that of METIS's schedule (in brackets): blue = finds good "
+                 'recipes sooner, red = later', fontsize=9, color=INK, loc='left')
+    fig.tight_layout()
+    fig.savefig(out / 'schedule_heatmap.png', dpi=150, facecolor=SURFACE)
+    plt.close(fig)
+
+    # 3. Best yield so far: the winner, a slow ramp and the reference.
+    slow = next((a['name'] for a in candidates if a['schedule'].get('slope') == 1.0), candidates[0]['name'])
+    shown = [(winner, 'winner: slope {}'.format(labels[winner]), ARM_COLORS['tabpfn35'], '-'),
+             (slow, 'slope {} (pure exploitation only in round 10)'.format(labels[slow]), PALETTE[1], '-'),
+             (ref, "METIS's schedule", INK_2, (0, (4, 3)))]
+    best = _best_so_far(points)
+    plt, fig, axes = _figure(1, len(datasets), figsize=(3.3 * len(datasets), 3.4), squeeze=False)
+    handles = []
+    for c, ds in enumerate(datasets):
+        ax = axes[0][c]
+        for arm, label, color, ls in shown:
+            g = best[(best.dataset == ds) & (best.arm == arm)].groupby('round').best_fraction.mean()
+            line, = ax.plot(g.index, g.to_numpy(), color=color, lw=2, ls=ls, label=label)
+            if c == 0:
+                handles.append(line)
+        _style(ax)
+        ax.set_title(DATASET_LABELS.get(ds, ds), fontsize=10, color=INK, loc='left')
+        ax.set_xlabel('Round')
+        if c == 0:
+            ax.set_ylabel("best measured yield so far\n(fraction of the pool's best)", fontsize=8)
+    fig.legend(handles, [h.get_label() for h in handles], loc='lower center', ncol=3, frameon=False, fontsize=8,
+               labelcolor=INK_2)
+    fig.suptitle('Best recipe found so far with TabPFN-3.5 (mean over {} seeds)'.format(runs.seed.nunique()),
+                 fontsize=10, color=INK, x=0.01, ha='left')
+    fig.tight_layout(rect=(0, 0.08, 1, 1))
+    fig.savefig(out / 'schedule_best_so_far.png', dpi=150, facecolor=SURFACE)
+    plt.close(fig)
+
+    # 4. Table: winner against the reference, paired by seed.
+    lines = ['# {}: the winning ramp against METIS\'s schedule'.format(cfg['name']), '',
+             'Mean over {} seeds. AUC = mean normalised regret over rounds (lower = good recipes sooner). '
+             'Difference = winner minus METIS\'s schedule, same seed (mean and standard error).'.format(
+                 runs.seed.nunique()), '',
+             '| dataset | AUC, winner (slope {}) | AUC, METIS\'s schedule | difference | best recipe found (winner / METIS) '
+             '| round found (winner / METIS) |'.format(labels[winner]),
+             '|---|---|---|---|---|---|']
+    a = runs[runs.arm == winner].set_index(['dataset', 'seed'])
+    b = runs[runs.arm == ref].set_index(['dataset', 'seed'])
+    for ds in datasets + ['all']:
+        idx = [k for k in a.index.intersection(b.index) if ds == 'all' or k[0] == ds]
+        d = a.loc[idx, 'auc_norm_regret'] - b.loc[idx, 'auc_norm_regret']
+        lines.append('| {} | {:.3f} | {:.3f} | {:+.3f} ({:.3f}) | {} / {} | {:.1f} / {:.1f} |'.format(
+            DATASET_LABELS.get(ds, 'all four'), a.loc[idx, 'auc_norm_regret'].mean(),
+            b.loc[idx, 'auc_norm_regret'].mean(), d.mean(), d.std(ddof=1) / np.sqrt(len(d)),
+            int(a.loc[idx, 'round_found'].notna().sum()), int(b.loc[idx, 'round_found'].notna().sum()),
+            a.loc[idx, 'round_found'].mean(), b.loc[idx, 'round_found'].mean()))
+    (out / 'schedule_summary.md').write_text('\n'.join(lines) + '\n', encoding='utf-8')
+    return out
+
+
 def write_replay(cfg, exp_dir):
     exp_dir = pathlib.Path(exp_dir)
     out = exp_dir / 'replay'
