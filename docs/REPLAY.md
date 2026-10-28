@@ -72,9 +72,10 @@ On Windows, keep the repository outside OneDrive. If `uv sync` fails with
 `os error 396` (hard links refused), add `--link-mode copy`, or set `UV_LINK_MODE=copy`
 for the user.
 
-The main benchmark uses TabPFN v2 (`--extra tabpfn`, package 2.0.9). The two extras
-cannot be installed together, and `TabPFNSurrogate` refuses to run if the installed
-package does not match the arm's `version`.
+The synthetic benchmark uses TabPFN-3.5 too (amendment 5; `--extra tabpfn35`). The older
+TabPFN v2 extra (`--extra tabpfn`, package 2.0.9) cannot be installed alongside it, and
+`TabPFNSurrogate` refuses to run if the installed package does not match the arm's
+`version`.
 
 ## TabPFN's own exploration schedule (amendment 4)
 

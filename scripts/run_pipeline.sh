@@ -13,7 +13,7 @@ FLAG=""
 SUFFIX=""
 if [[ "${PILOT:-0}" == "1" ]]; then FLAG="--pilot"; SUFFIX="-pilot"; fi
 # TORCH=cpu (default), cu126 or cu128 picks the PyTorch build for the TabPFN arm.
-bench() { uv run --extra tabpfn --extra "${TORCH:-cpu}" python -W ignore -m metis_bench "$@"; }
+bench() { uv run --extra tabpfn35 --extra "${TORCH:-cpu}" python -W ignore -m metis_bench "$@"; }
 
 # TabPFN arms use TabPFN's own schedule, tuned beforehand on the replay data with TabPFN-3.5
 # on a GPU (experiments/tabpfn_schedule_tune.yaml, amendment 4). Pilots fall back to v1.

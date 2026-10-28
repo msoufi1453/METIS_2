@@ -19,7 +19,7 @@ arms:
   # otherwise the CPU. Run this arm alone on a GPU machine with `--arms surr_tabpfn`.
   # Schedule: TabPFN's own, tuned on the replay data (experiments/tuned/tabpfn_schedule.json,
   # amendment 4); the incumbent and the GP keep the v1 schedule.
-  - {name: surr_tabpfn, surrogate: {type: tabpfn, n_estimators: 8, device: auto}}
+  - {name: surr_tabpfn, surrogate: {type: tabpfn, version: v3.5, n_estimators: 8, device: auto}}   # amendment 5: TabPFN-3.5
 # TabPFN on CPU costs about 4 minutes per round single-threaded (320 training recipes,
 # 2,300 predictions, 4 estimators). The full study should run it with device: cuda.
 pilot:

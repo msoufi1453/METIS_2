@@ -3,19 +3,22 @@
 Everything runs from the repository root in the pinned environment:
 
 ```bash
-uv sync --extra tabpfn --extra cpu      # CPU machines
-uv sync --extra tabpfn --extra cu126    # NVIDIA GPU up to RTX 40 series (cu128 for RTX 50)
+uv sync --extra tabpfn35 --extra cpu      # CPU machines
+uv sync --extra tabpfn35 --extra cu126    # NVIDIA GPU up to RTX 40 series (cu128 for RTX 50)
 ```
 
 The protocol, metrics and statistics are fixed in [PREREGISTRATION.md](PREREGISTRATION.md).
 A separate, exploratory replay of the paper's measured-data experiments (PURE, Borkowski,
-CETCH; XGBoost vs linear vs TabPFN-3.5) is described in [REPLAY.md](REPLAY.md). It needs
-`--extra tabpfn35` instead of `--extra tabpfn`.
+CETCH; XGBoost vs linear vs TabPFN-3.5) is described in [REPLAY.md](REPLAY.md).
+
+TabPFN is TabPFN-3.5 everywhere (amendment 5). Its weights are under a non-commercial
+licence: a machine that runs TabPFN arms needs the one-time licence acceptance or a
+`TABPFN_TOKEN` (docs/REPLAY.md). Machines that run only the other arms do not.
 
 ## 0. Guards
 
 ```bash
-uv run --extra tabpfn --extra cpu pytest
+uv run --extra tabpfn35 --extra cpu pytest
 ```
 
 * `tests/test_regression_legacy.py`: one seeded METIS round reproduces the v1 output byte
@@ -27,8 +30,8 @@ uv run --extra tabpfn --extra cpu pytest
 ## 1. Oracles and calibration (Phase 1)
 
 ```bash
-uv run --extra tabpfn --extra cpu python -m metis_bench oracles      # gold regressors, cached in artifacts/oracles/
-uv run --extra tabpfn --extra cpu python -m metis_bench calibrate    # real + synthetic descriptors, suite selection
+uv run --extra tabpfn35 --extra cpu python -m metis_bench oracles      # gold regressors, cached in artifacts/oracles/
+uv run --extra tabpfn35 --extra cpu python -m metis_bench calibrate    # real + synthetic descriptors, suite selection
 ```
 
 `calibrate` writes `suite/`:
@@ -47,8 +50,8 @@ Each experiment file in `experiments/` defines the problems, arms and comparison
 families. The same commands serve every phase:
 
 ```bash
-uv run --extra tabpfn --extra cpu python -m metis_bench run    experiments/phase2_surrogates.yaml --jobs 8
-uv run --extra tabpfn --extra cpu python -m metis_bench report experiments/phase2_surrogates.yaml
+uv run --extra tabpfn35 --extra cpu python -m metis_bench run    experiments/phase2_surrogates.yaml --jobs 8
+uv run --extra tabpfn35 --extra cpu python -m metis_bench report experiments/phase2_surrogates.yaml
 ```
 
 * `--pilot` applies the file's `pilot` block (few problems and seeds, cheaper incumbent
@@ -82,7 +85,7 @@ run    experiments/phase3_hparams.yaml;   report experiments/phase3_hparams.yaml
 run    experiments/phase3_ablation.yaml;  report experiments/phase3_ablation.yaml
 ```
 
-(prefix each line with `uv run --extra tabpfn --extra cpu python -m metis_bench`).
+(prefix each line with `uv run --extra tabpfn35 --extra cpu python -m metis_bench`).
 
 ## 3. Reading a report
 
@@ -125,17 +128,17 @@ together before `report`:
 
 ```bash
 # GPU machine (NVIDIA up to RTX 40 series; use cu128 for RTX 50 series)
-uv sync --extra tabpfn --extra cu126
-uv run --extra tabpfn --extra cu126 python -m metis_bench oracles
-uv run --extra tabpfn --extra cu126 python -m metis_bench run experiments/phase2_surrogates.yaml --arms surr_tabpfn --jobs 2
+uv sync --extra tabpfn35 --extra cu126
+uv run --extra tabpfn35 --extra cu126 python -m metis_bench oracles
+uv run --extra tabpfn35 --extra cu126 python -m metis_bench run experiments/phase2_surrogates.yaml --arms surr_tabpfn --jobs 2
 
 # CPU workers
-uv run --extra tabpfn --extra cpu python -m metis_bench run experiments/phase2_surrogates.yaml --skip-arms surr_tabpfn --jobs 8
+uv run --extra tabpfn35 --extra cpu python -m metis_bench run experiments/phase2_surrogates.yaml --skip-arms surr_tabpfn --jobs 8
 
 # then copy results/phase2_surrogates/ from both machines into one folder and run `report`
 ```
 
-Check the GPU is used: `uv run --extra tabpfn --extra cu126 python -c "import torch; print(torch.cuda.is_available())"`
+Check the GPU is used: `uv run --extra tabpfn35 --extra cu126 python -c "import torch; print(torch.cuda.is_available())"`
 should print `True`. Several TabPFN workers can share one GPU if its memory allows (start
 with `--jobs 2` and watch `nvidia-smi`). If TabPFN wins Phase 2, the Phase 3 arms that
 use it need the GPU machine too.

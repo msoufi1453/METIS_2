@@ -10,7 +10,7 @@ candidates_by_type:
   xgb_ensemble:
     - {type: xgb_ensemble, n_iter: [50, 200, 500], ensemble_len: [5, 10, 20, 40]}
   tabpfn:
-    - {type: tabpfn, n_estimators: [4, 8, 16, 32]}
+    - {type: tabpfn, version: v3.5, device: auto, n_estimators: [4, 8, 16, 32]}
 problems:
   suite: suite/suite.json
   split: dev
@@ -29,4 +29,4 @@ pilot:
     xgb_ensemble:
       - {type: xgb_ensemble, n_iter: [15], ensemble_len: [5, 10]}
     tabpfn:
-      - {type: tabpfn, n_estimators: [2, 4]}
+      - {type: tabpfn, version: v3.5, device: auto, n_estimators: [2, 4]}

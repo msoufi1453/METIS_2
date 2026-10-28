@@ -28,7 +28,7 @@ Pandi A*‡, Diehl C*, Yazdizadeh Kharrazi A, Scholz SA, Bobkova E, Faure L, Nat
 | `metis.initialization` | Initial designs on the droplet grid: random (v1), scrambled Sobol, maximin LHS, fill-the-unsampled-region for imported data |
 | `metis.schedules` | Exploration schedules: v1 list, constant, linear/exponential decay, GP-UCB rate, adaptive |
 
-Environment: `uv sync --extra tabpfn --extra cpu` (or `--extra cu126` / `cu128` on an NVIDIA GPU) creates the pinned environment from `uv.lock` (Python 3.11). `uv run pytest` runs the tests; `tests/test_regression_legacy.py` checks that one seeded METIS round reproduces the original output byte for byte.
+Environment: `uv sync --extra tabpfn35 --extra cpu` (or `--extra cu126` / `cu128` on an NVIDIA GPU) creates the pinned environment from `uv.lock` (Python 3.11). `uv run pytest` runs the tests; `tests/test_regression_legacy.py` checks that one seeded METIS round reproduces the original output byte for byte.
 
 ## Benchmark (`metis_bench`)
 A benchmark harness for improving METIS, with exact regret:
