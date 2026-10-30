@@ -92,3 +92,16 @@ def test_write_replay_figures_and_tables(tmp_path):
     assert '| PURE | XGBoost (METIS) | 2/2 |' in summary
     assert '| PURE | Random | 0/2 |' in summary
     assert '| Linear | XGBoost (METIS) | PURE | 2 | 0 / 2 / 0 |' in summary
+
+
+def test_small_batch_replay_samples_under_one_percent():
+    from metis_bench import experiments
+    from metis_bench.arms import resolve
+    cfg = experiments.load('experiments/replay_small.yaml')
+    big = {p['name']: p['settings']['batch_size'] for p in experiments.load('experiments/replay_paper.yaml')['problems']['measured']}
+    for p in cfg['problems']['measured']:
+        batch = p['settings']['batch_size']
+        assert batch == round(big[p['name']] / 5) and 5 <= batch <= 10
+        assert batch < 0.01 * build_measured(p['name']).meta['n_recipes']
+    tabpfn = resolve(next(a for a in cfg['arms'] if a['name'] == 'tabpfn35'))
+    assert tabpfn['schedule']['type'] == 'exploit_ramp'          # TabPFN's tuned schedule (amendment 4)

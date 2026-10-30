@@ -1,0 +1,32 @@
+# Small-batch replay (docs/REPLAY.md): the same datasets, oracle, held-out set and models as
+# replay_paper.yaml, but every batch is divided by 5: PURE 9, Borkowski 8, CETCH yield 5,
+# CETCH efficiency 8 recipes per round, under 1% of each dataset. Ten rounds then measure
+# about 10% of the candidate pool instead of half, so finding the best recipes takes a
+# model rather than coverage.
+#
+# Split by machine: the CPU arms run anywhere (--skip-arms tabpfn35); the TabPFN arm needs
+# the GPU machine (--arms tabpfn35). Their results are committed under results/replay_small/,
+# so either machine can finish the other's part and run `replay` for the figures.
+name: replay_small
+reference: incumbent
+families:
+  R1: {reference: incumbent, arms: [linear, tabpfn35]}
+problems:
+  measured:
+    - {name: pure, settings: {batch_size: 9}}
+    - {name: borkowski, settings: {batch_size: 8}}
+    - {name: cetch_yield, settings: {batch_size: 5}}
+    - {name: cetch_efficiency, settings: {batch_size: 8}}
+settings: {n_rounds: 10, pool_size: 100000}
+# 10 seeds: small batches make single campaigns noisier.
+seeds: [0, 10]
+arms:
+  - {name: incumbent}   # METIS v1: XGBoost ensemble (200 random-search draws, 20 members), v1 schedule
+  - {name: linear, surrogate: {type: linear_ensemble}}
+  # TabPFN-3.5 with its own tuned schedule (amendment 4), as every TabPFN arm now.
+  - {name: tabpfn35, surrogate: {type: tabpfn, version: v3.5, n_estimators: 8, device: auto}}
+  - {name: random, selector: {type: random}}
+pilot:
+  seeds: [0, 1]
+  settings: {n_rounds: 3}
+  arm_overrides: {xgb_ensemble: {n_iter: 15, ensemble_len: 10}, tabpfn: {n_estimators: 1}}

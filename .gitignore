@@ -141,6 +141,7 @@ cython_debug/
 # Benchmark artefacts (oracle caches, campaign results, reports)
 artifacts/*
 !artifacts/oracles/
-results/
+results/*
+!results/replay_small/
 # Pilot tuning outputs (the real tuned files in experiments/tuned/ are committed)
 experiments/tuned/*-pilot.json

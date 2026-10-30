@@ -257,3 +257,36 @@ Caveats:
   recipes after day 1 were chosen by an optimiser, so they are concentrated in good
   regions. A replay therefore cannot show how a model explores outside what was measured;
   that is what the synthetic benchmark is for.
+
+## Small-batch replay (`experiments/replay_small.yaml`)
+
+The replay above measures half of each pool by round 10, which makes the task easy:
+every model eventually finds the best recipe. This second replay divides every batch by
+5, so each round measures under 1% of the dataset and ten rounds about 10% of the pool:
+
+| dataset | recipes | batch above | batch here | share of the dataset per round | measured by round 10 |
+|---|---|---|---|---|---|
+| PURE | 1,094 | 44 | 9 | 0.8% | 90 of 875 in the pool |
+| Borkowski | 1,007 | 40 | 8 | 0.8% | 80 of 806 |
+| CETCH yield | 625 | 25 | 5 | 0.8% | 50 of 500 |
+| CETCH efficiency | 1,000 | 40 | 8 | 0.8% | 80 of 800 |
+
+Everything else is as above (oracle, held-out 20%, 10 rounds, the same models), with two
+differences: 10 seeds instead of 3 (small batches make a single campaign noisier), and
+TabPFN-3.5 uses its tuned schedule (amendment 4) rather than METIS's.
+
+The CPU arms (XGBoost, linear, random) and the TabPFN arm run on different machines, and
+the results are committed under `results/replay_small/` so either machine can finish:
+
+```bash
+python -m metis_bench run experiments/replay_small.yaml --skip-arms tabpfn35 --jobs 6   # CPU machine
+python -m metis_bench run experiments/replay_small.yaml --arms tabpfn35                 # GPU machine
+python -m metis_bench replay experiments/replay_small.yaml                              # figures and tables
+```
+
+Finished campaigns are skipped, so running the whole file on the GPU machine after
+pulling the CPU results runs only the TabPFN arm.
+
+On an 8-thread laptop the CPU arms took about 2½ hours with 6 jobs. Each XGBoost
+campaign took 17–28 minutes, because METIS reruns its hyperparameter search (200 settings
+x 5 folds) every round whatever the batch size; linear and random campaigns took seconds.
