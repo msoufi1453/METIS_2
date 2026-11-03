@@ -54,6 +54,7 @@ class TabPFNSurrogate(Surrogate):
         random_state = self.random_state
         if isinstance(random_state, np.random.Generator):
             random_state = int(random_state.integers(2 ** 31 - 1))
+        self.seed_ = random_state
         major = int(str(getattr(tabpfn, '__version__', '0')).split('.')[0])
         if self.version == 'v2':
             if major >= 3:
@@ -85,6 +86,16 @@ class TabPFNSurrogate(Surrogate):
             variance = out['criterion'].variance(out['logits']).detach().cpu().numpy()
             stds.append(np.sqrt(np.maximum(variance.astype(float), 0.0)))
         return Prediction(mean=np.concatenate(means), std=np.concatenate(stds))
+
+    def clone(self):
+        """An unfitted twin with the same settings and seed, for fantasies.
+
+        Fitting it just loads the context, so a fantasy is one more row of in-context
+        data, not retraining. (A deep copy would also copy the network weights.)
+        """
+        return TabPFNSurrogate(n_estimators=self.n_estimators, device=self.device, model_path=self.model_path,
+                               chunk_size=self.chunk_size, random_state=getattr(self, 'seed_', self.random_state),
+                               version=self.version)
 
     def describe(self):
         out = {'name': self.name, 'version': self.version, 'n_estimators': self.n_estimators}

@@ -13,6 +13,13 @@ An arm is a plain dict, so it can live in YAML experiment files and be logged ve
 
 Missing keys take METIS v1 defaults (``INCUMBENT``), except that a TabPFN arm without
 its own ``schedule`` takes TabPFN's tuned schedule (``TABPFN_SCHEDULE``, amendment 4).
+
+Optional modules, each switched on by its key and, with ``rounds: [first, last]``, only
+in those rounds (other rounds use plain top-k and no climbing):
+
+    selector: {type: soft_penalty, radius_scale: 1.0}   # distance penalty, radius x dataset spacing
+    selector: {type: sequential_fantasy}                # fantasy batch (kriging believer)
+    hillclimb: {n_starts: 10, max_steps: 20}            # discrete hill-climbing (metis.hillclimb)
 """
 import copy
 import functools
@@ -20,7 +27,8 @@ import json
 import pathlib
 
 from metis import initialization, pools, schedules
-from metis.acquisition import GPBUCB, UCB, ExpectedImprovement, LocalPenalization, RandomSelector, SequentialFantasy, TopK
+from metis.acquisition import (GPBUCB, UCB, ExpectedImprovement, LocalPenalization, RandomSelector, SequentialFantasy,
+                               SoftPenalty, TopK)
 from sklearn.linear_model import LinearRegression
 
 from metis.surrogates import GPSurrogate, RegressorEnsemble, TabPFNSurrogate, XGBEnsemble
@@ -78,7 +86,15 @@ def resolve(arm):
 
 
 def _params(cfg):
-    return {k: v for k, v in cfg.items() if k != 'type'}
+    return {k: v for k, v in cfg.items() if k not in ('type', 'rounds')}
+
+
+def active(cfg, r):
+    """Whether a module (a config dict with optional ``rounds: [first, last]``) is on in round ``r``."""
+    if not cfg:
+        return False
+    first, last = cfg.get('rounds') or (1, 10 ** 9)
+    return first <= r <= last
 
 
 def make_surrogate(cfg, space, rng, use_noise):
@@ -104,10 +120,18 @@ def make_acquisition(cfg):
     raise ValueError('unknown acquisition {}'.format(kind))
 
 
-def make_selector(cfg, rng=None):
+def make_selector(cfg, rng=None, spacing=None):
+    """``spacing``: the problem's typical distance between recipes, which ``soft_penalty``'s
+    ``radius_scale`` multiplies (an explicit ``radius`` is used as is)."""
     kind, p = cfg['type'], _params(cfg)
     if kind == 'random':
         return RandomSelector(seed=int(rng.integers(2 ** 31 - 1)) if rng is not None else 0)
+    if kind == 'soft_penalty':
+        if 'radius' in p:
+            return SoftPenalty(p['radius'])
+        if spacing is None:
+            raise ValueError('soft_penalty with radius_scale needs the problem spacing')
+        return SoftPenalty(p.get('radius_scale', 1.0) * spacing)
     return {'topk': TopK, 'sequential_fantasy': SequentialFantasy, 'local_penalization': LocalPenalization,
             'gp_bucb': GPBUCB}[kind](**p)
 

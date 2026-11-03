@@ -85,3 +85,22 @@ def imported_design(space, n, rng, kind='ofat', n_bases=2):
 
 def problem_seed(problem_id):
     return zlib.crc32(problem_id.encode())
+
+
+def typical_spacing(oracle, max_points=20000, seed=20241014):
+    """Median distance from a recipe to its nearest other recipe, in ``space.embedding``
+    units: over the measured recipes of a pooled dataset, or over ``max_points`` random
+    feasible designs otherwise. Distance penalties are scaled by it, so "low" and "high"
+    mean the same thing on every dataset. Fixed per oracle (cached on it)."""
+    if getattr(oracle, '_spacing', None) is None:
+        from sklearn.neighbors import NearestNeighbors
+        space, rng = oracle.space, np.random.default_rng(seed)
+        points = getattr(space, 'pool', None)
+        if points is None:
+            points = space.sample(max_points, rng)
+        elif len(points) > max_points:
+            points = points[rng.choice(len(points), size=max_points, replace=False)]
+        E = space.embedding(points)
+        d = NearestNeighbors(n_neighbors=2).fit(E).kneighbors(E)[0][:, 1]
+        oracle._spacing = float(np.median(d[d > 0]))
+    return oracle._spacing

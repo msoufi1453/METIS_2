@@ -1,0 +1,50 @@
+# TabPFN-3.5 module tests (docs/MODULES.md): each module against plain TabPFN, one at a time.
+#
+#   control       TabPFN-3.5 with its tuned schedule, plain top-k batches
+#   penalty_low   soft distance penalty, radius = the dataset's typical spacing (median
+#                 nearest-neighbour distance between recipes)
+#   penalty_high  the same with 3 x that radius
+#   fantasy       fantasy batch: pick, pretend it was measured at its predicted value, re-fit, repeat
+#   hillclimb     discrete hill-climbing from the 10 best pool candidates, at most 20 steps
+#                 (only where every neighbour is measurable: cell growth and the synthetic function)
+#
+# Problems: Borkowski (1,007 measured recipes), the exhaustive cell-growth grid (Aida & Ying
+# 2024; 115 strains x 135 media, 13,944 recipes; data not in the repository, see
+# data/README.md) and one synthetic 12-factor function with a known optimum (the
+# pool-ceiling test function of docs/PILOT_RESULTS.md, noise-free).
+# Ten recipes per round everywhere: 1% of Borkowski, 0.07% of cell growth. Cell growth draws
+# a random 1,000 of its unmeasured recipes per round as the pool (so there is room to climb);
+# the synthetic function draws 10,000 random feasible recipes, as METIS does.
+#
+# Seed 0 keeps every round's scored pool (snapshot_seeds) for the PCA figures. Figures:
+#   python -m metis_bench replay experiments/tabpfn_modules.yaml
+name: tabpfn_modules
+report: modules
+reference: control
+families:
+  penalty: {reference: control, arms: [penalty_low, penalty_high]}
+  fantasy: {reference: control, arms: [fantasy]}
+  hillclimb: {reference: control, arms: [hillclimb]}
+problems:
+  measured:
+    - {name: borkowski}
+    - {name: cell_growth, settings: {pool_size: 1000}}
+  functions:
+    - name: synthetic
+      spec: {subtype: broad, active: all, zero_fraction: 0.0, n_categorical: 0, contrast: 129.0, seed: 8}
+      n_dims: 12
+      noise: none
+settings: {batch_size: 10, n_rounds: 10, pool_size: 10000, test_points: 1000}
+seeds: [0, 3]
+snapshot_seeds: [0]
+arms:
+  - {name: control, surrogate: &tabpfn {type: tabpfn, version: v3.5, n_estimators: 8, device: auto}}
+  - {name: penalty_low, surrogate: *tabpfn, selector: {type: soft_penalty, radius_scale: 1.0}}
+  - {name: penalty_high, surrogate: *tabpfn, selector: {type: soft_penalty, radius_scale: 3.0}}
+  - {name: fantasy, surrogate: *tabpfn, selector: {type: sequential_fantasy}}
+  - {name: hillclimb, surrogate: *tabpfn, hillclimb: {n_starts: 10, max_steps: 20},
+     only_problems: [cell_growth, synthetic]}
+pilot:
+  seeds: [0, 1]
+  settings: {n_rounds: 3, pool_size: 500, test_points: 200}
+  arm_overrides: {tabpfn: {n_estimators: 1}}

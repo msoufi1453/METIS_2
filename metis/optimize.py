@@ -18,18 +18,21 @@ class Suggestion:
 
 
 def suggest(surrogate, X_obs, y_obs, candidates, k, acquisition=None, selector=None, noise_var=None,
-            embedding=None, blocked=None, is_new=None, fit=True):
+            embedding=None, blocked=None, is_new=None, fit=True, prediction=None):
     """Fit ``surrogate`` and pick ``k`` rows of ``candidates``.
 
     ``noise_var`` (per-sample variance of the observed yields) reaches the surrogate only
     if it accepts noise. ``embedding`` gives candidate coordinates for distance-based
     selectors; ``blocked`` marks candidates that must not be picked (e.g. measured).
+    ``prediction``: the fitted surrogate's prediction for ``candidates``, if the caller
+    already has it (then ``fit`` should be False).
     """
     acquisition = acquisition or UCB()
     selector = selector or TopK()
     if fit:
         surrogate.fit(X_obs, y_obs, noise_var=noise_var if surrogate.accepts_noise else None)
-    prediction = surrogate.predict(candidates)
+    if prediction is None:
+        prediction = surrogate.predict(candidates)
     best_y = float(np.max(y_obs)) if y_obs is not None and len(y_obs) else None
     ctx = SelectionContext(candidates=candidates, prediction=prediction, surrogate=surrogate,
                            acquisition=acquisition, X_obs=X_obs, y_obs=y_obs, noise_var=noise_var,

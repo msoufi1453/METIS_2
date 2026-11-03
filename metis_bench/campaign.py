@@ -7,6 +7,13 @@ all replicate means so far and scores a fresh pool of ``pool_size`` unmeasured
 feasible recipes. The selector picks the batch, which is measured in triplicate under
 the problem's noise model.
 
+Optional modules (``metis_bench.arms``): hill-climbing adds the end points of short climbs
+from the best pool candidates to the pool before selection; the selector may be a
+distance penalty or a fantasy batch; each can be limited to some rounds. Every guided
+round logs how spread out its batch is, and hill-climbing logs its step counts. With
+``snapshot`` on, the scored pool of every round is kept for PCA figures (``.npz`` next to
+the result).
+
 Seeds give common random numbers. A seed and a problem fix the initial design for
 initialisers that share a type, the imported data, and every noise draw (plate effects
 and per-well noise are drawn per round in a fixed order). Paired arms therefore differ
@@ -25,13 +32,18 @@ import zlib
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import asdict, dataclass
 
+import shutil
+
 import numpy as np
 
+from metis import hillclimb
+from metis.acquisition import TopK
 from metis.optimize import suggest
+from metis.surrogates import Prediction
 
 from . import arms as arm_lib
 from . import metrics
-from .problems import get_problem, imported_design, problem_seed
+from .problems import get_problem, imported_design, problem_seed, typical_spacing
 
 
 @dataclass
@@ -40,6 +52,15 @@ class Settings:
     n_rounds: int = 10
     pool_size: int = 10000
     test_points: int = 1000
+    snapshot: bool = False      # keep every round's scored pool (for PCA figures)
+
+
+def _spread(E, spacing):
+    """Mean and smallest pairwise distance within a batch, in units of the problem spacing."""
+    if len(E) < 2:
+        return None, None
+    d = np.linalg.norm(E[:, None, :] - E[None, :, :], axis=2)[np.triu_indices(len(E), 1)]
+    return float(d.mean() / spacing), float(d.min() / spacing)
 
 
 def _git_commit():
@@ -111,7 +132,11 @@ def run_campaign(problem_cfg, arm_cfg, seed, settings=None):
 
     schedule = arm_lib.make_schedule(arm['schedule'])
     pool_gen = arm_lib.make_pool(arm.get('pool'))
-    selector = arm_lib.make_selector(arm['selector'], np.random.default_rng(s_model.spawn(1)[0]))
+    spacing = typical_spacing(oracle)
+    selector = arm_lib.make_selector(arm['selector'], np.random.default_rng(s_model.spawn(1)[0]), spacing=spacing)
+    plain = TopK()
+    hill_cfg = arm.get('hillclimb')
+    snapshots = {} if settings.snapshot else None
     use_noise = bool(arm.get('use_noise'))
     rounds_log = []
     surrogate = None
@@ -142,15 +167,43 @@ def run_campaign(problem_cfg, arm_cfg, seed, settings=None):
             history.append(float(np.max(log['mean'])))
             rounds_log.append({'round': r, 'exploration': None, 'select_s': time.time() - t0, 'batch_size': len(chosen)})
             continue
+        # Same calls, in the same order, as suggest(fit=True) makes, so results are unchanged.
+        surrogate.fit(X_obs, y_obs, noise_var=noise_var if surrogate.accepts_noise else None)
+        pool_pred = surrogate.predict(space.features(pool))
+        n_pool, climb_log = len(pool), {}
+        if arm_lib.active(hill_cfg, r):
+            climbed = hillclimb.climb(space, surrogate, acquisition, pool, pool_pred, space.keys(observed),
+                                      best_y=float(np.max(y_obs)), n_starts=hill_cfg.get('n_starts', 10),
+                                      max_steps=hill_cfg.get('max_steps', 20))
+            if len(climbed.new):
+                pool = np.vstack([pool, climbed.new])
+                pool_pred = Prediction(np.concatenate([pool_pred.mean, climbed.new_prediction.mean]),
+                                       np.concatenate([pool_pred.std, climbed.new_prediction.std]))
+            climb_log = {'hc_steps': climbed.steps.tolist(), 'hc_capped': int(climbed.capped.sum()),
+                         'hc_new': len(climbed.new),
+                         'hc_score_gain': float(np.mean(climbed.end_scores - climbed.start_scores))}
+        round_selector = selector if arm_lib.active(arm['selector'], r) else plain
         result = suggest(surrogate, X_obs, y_obs, space.features(pool), settings.batch_size, acquisition=acquisition,
-                         selector=selector, noise_var=noise_var, embedding=space.embedding(pool))
+                         selector=round_selector, noise_var=noise_var, embedding=space.embedding(pool), fit=False,
+                         prediction=pool_pred)
         t_select = time.time() - t0
         chosen = pool[result.indices]
+        if climb_log:
+            climb_log['hc_chosen'] = int((result.indices >= n_pool).sum())
+        if snapshots is not None:
+            scores = np.asarray(acquisition(pool_pred, best_y=float(np.max(y_obs))), float)
+            snapshots.update({'r{}_cand'.format(r): pool.astype(np.uint8), 'r{}_score'.format(r): scores.astype(np.float32),
+                              'r{}_mean'.format(r): pool_pred.mean.astype(np.float32),
+                              'r{}_std'.format(r): pool_pred.std.astype(np.float32),
+                              'r{}_chosen'.format(r): result.indices.astype(np.int32),
+                              'r{}_n_pool'.format(r): np.array(n_pool)})
+        spread, min_gap = _spread(space.embedding(chosen), spacing)
 
         test_pred = surrogate.predict(test_X)
         chosen_f = oracle(chosen)
         record = {'round': r, 'exploitation': exploitation, 'exploration': exploration, 'select_s': t_select,
-                  'batch_size': len(chosen),
+                  'batch_size': len(chosen), 'selector': round_selector.name, 'batch_spread': spread,
+                  'batch_min_gap': min_gap, **climb_log,
                   **{'test_' + k: v for k, v in metrics.accuracy(test_pred.mean, test_f).items()},
                   **{'test_' + k: v for k, v in metrics.calibration(test_pred.mean, test_pred.std, test_f).items()},
                   **{'batch_' + k: v for k, v in metrics.accuracy(result.prediction.mean, chosen_f).items()},
@@ -165,9 +218,9 @@ def run_campaign(problem_cfg, arm_cfg, seed, settings=None):
     by_round = {row['round']: row for row in trajectory}
     for record in rounds_log:
         record.update({k: v for k, v in by_round.get(record['round'], {}).items() if k != 'round'})
-    return {
+    out = {
         'problem': {'id': problem.id, **oracle.describe(), 'noise': noise.to_dict(), 'imported': problem.imported,
-                    **(problem.labels or {})},
+                    'spacing': spacing, **(problem.labels or {})},
         'arm': arm, 'arm_name': arm['name'], 'seed': seed, 'settings': asdict(settings),
         'trajectory': trajectory, 'rounds': rounds_log,
         'endpoints': metrics.endpoints(trajectory, oracle.f_max),
@@ -177,6 +230,9 @@ def run_campaign(problem_cfg, arm_cfg, seed, settings=None):
                         'surrogate': surrogate.describe() if hasattr(surrogate, 'describe') else None},
         'elapsed_s': time.time() - t_start,
     }
+    if snapshots is not None:
+        out['_snapshots'] = snapshots      # written to a .npz by the runner, not into the JSON
+    return out
 
 
 # --------------------------------------------------------------------------- experiments
@@ -205,6 +261,8 @@ def task_key(task):
     arm.pop('name', None)
     arm.pop('ablation_subset', None)
     problem = {k: v for k, v in problem_cfg.items() if k != 'labels'}
+    # Settings added later enter the key only when switched on, so earlier keys stay valid.
+    settings = {k: v for k, v in settings.items() if not (k == 'snapshot' and not v)}
     blob = json.dumps({'arm': arm, 'problem': problem, 'seed': seed, 'settings': settings,
                        'version': SHARED_VERSION}, sort_keys=True, default=str)
     return hashlib.sha256(blob.encode()).hexdigest()[:24]
@@ -234,6 +292,9 @@ def _materialize(task, source):
     result['problem'] = {**result['problem'], **(problem_cfg.get('labels') or {})}
     result['shared_key'] = pathlib.Path(source).stem
     _write_json(path, result)
+    snapshot = pathlib.Path(source).with_suffix('.npz')
+    if snapshot.exists():
+        shutil.copyfile(snapshot, pathlib.Path(path).with_suffix('.npz'))
 
 
 def _worker(job):
@@ -242,6 +303,10 @@ def _worker(job):
     try:
         result = run_campaign(problem_cfg, arm_cfg, seed, Settings(**settings))
         source = shared_path(task, key)
+        snapshots = result.pop('_snapshots', None)
+        if snapshots:
+            source.parent.mkdir(parents=True, exist_ok=True)
+            np.savez_compressed(source.with_suffix('.npz'), **snapshots)
         _write_json(source, result)
         _materialize(task, source)
         return path, None, result['elapsed_s']

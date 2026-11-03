@@ -185,6 +185,12 @@ def problem_configs(cfg):
                             'labels': {'kind': 'synthetic', 'landscape': f['landscape'], 'subtype': f['spec']['subtype'],
                                        'split': f['split'], 'realism': f['realism'],
                                        'nearest_real': f['nearest_real'], 'selection': f.get('selection')}})
+    for entry in p.get('functions', []):
+        # One named synthetic function: {name: synthetic, spec: {...FunctionSpec}, n_dims: 12, noise: none}.
+        out.append({'synthetic': entry['spec'], 'n_dims': entry['n_dims'], 'noise': entry.get('noise', 'none'),
+                    'settings': entry.get('settings', {}),
+                    'labels': {'kind': 'synthetic', 'landscape': entry['spec']['subtype'], 'subtype': entry['name'],
+                               'split': 'synthetic', 'realism': 0.0, 'nearest_real': None}})
     for entry in p.get('measured', []):
         # A measured dataset may set its own batch size: {name: pure, settings: {batch_size: 44}}.
         entry = {'name': entry} if isinstance(entry, str) else entry
@@ -208,12 +214,18 @@ def tasks(cfg, out_dir):
     from .problems import get_problem
 
     settings = {**vars(Settings()), **cfg.get('settings', {})}
+    # Seeds whose scored pools are kept for PCA figures (experiment-level `snapshot_seeds`).
+    snapshot_seeds = set(cfg.get('snapshot_seeds', []))
     out = []
     for problem_cfg in problem_configs(cfg):
         pid = get_problem(problem_cfg).id
         problem_settings = {**settings, **problem_cfg.get('settings', {})}
         for arm in cfg['arms']:
+            # An arm may be limited to some problems (by name): `only_problems: [cell_growth, synthetic]`.
+            if arm.get('only_problems') and problem_cfg['labels']['subtype'] not in arm['only_problems']:
+                continue
             for seed in seeds_of(cfg):
                 path = result_path(out_dir, cfg['name'], pid, arm['name'], seed)
-                out.append((copy.deepcopy(problem_cfg), copy.deepcopy(arm), seed, problem_settings, str(path)))
+                out.append((copy.deepcopy(problem_cfg), copy.deepcopy(arm), seed,
+                            {**problem_settings, 'snapshot': seed in snapshot_seeds}, str(path)))
     return out

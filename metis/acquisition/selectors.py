@@ -8,6 +8,8 @@
   probability that they lie outside the pick's Lipschitz exclusion ball.
 * ``GPBUCB``: hallucinated GP-UCB (Desautels et al., JMLR 2014). Each pick shrinks the
   posterior variance around it as if it had been measured. GP surrogates only.
+* ``SoftPenalty``: greedy batch with a fixed-radius Gaussian distance penalty. Each pick
+  multiplies the scores of nearby candidates by ``1 - exp(-d^2 / 2r^2)``.
 """
 from dataclasses import dataclass
 
@@ -232,6 +234,47 @@ class LocalPenalization(BatchSelector):
     def describe(self):
         return {'name': self.name, 'lipschitz_scale': self.lipschitz_scale,
                 'lipschitz_quantile': self.lipschitz_quantile, 'min_radius': self.min_radius}
+
+
+class SoftPenalty(BatchSelector):
+    """Greedy batch that softly pushes picks apart, with a radius in embedding units.
+
+    Scores are shifted to be positive (``score - min score``). After each pick ``x_j``
+    every candidate's shifted score is multiplied by ``1 - exp(-d^2 / (2 r^2))``, with
+    ``d`` its distance to ``x_j``: 0 at the pick itself, 0.39 at ``d = r``, 0.86 at
+    ``2r`` and 0.99 at ``3r``. Unlike ``LocalPenalization`` the radius does not depend on
+    the model, so "low" and "high" penalties mean the same distance in every round. The
+    benchmark sets ``radius`` from the dataset's typical spacing (median nearest-neighbour
+    distance) times a ``radius_scale``.
+    """
+
+    name = 'soft_penalty'
+
+    def __init__(self, radius):
+        if not radius > 0:
+            raise ValueError('radius must be positive')
+        self.radius = float(radius)
+
+    def select(self, ctx, k):
+        scores = np.asarray(ctx.acquisition(ctx.prediction, best_y=ctx.best_y), float)
+        E = ctx.embedding
+        if E is None:
+            lo, span = ctx.candidates.min(axis=0), np.ptp(ctx.candidates, axis=0)
+            E = (ctx.candidates - lo) / np.where(span > 0, span, 1.0)
+        weight = scores - scores.min() + 1e-12 * (np.abs(scores).max() + 1.0)
+        chosen, picked_scores = [], []
+        for _ in range(k):
+            i = _best_available(weight, ctx, set(chosen))
+            if i is None:
+                break
+            chosen.append(i)
+            picked_scores.append(scores[i])
+            d2 = np.sum((E - E[i]) ** 2, axis=1)
+            weight = weight * -np.expm1(-d2 / (2.0 * self.radius ** 2))
+        return Selection(np.array(chosen, dtype=np.int64), np.array(picked_scores))
+
+    def describe(self):
+        return {'name': self.name, 'radius': self.radius}
 
 
 class GPBUCB(BatchSelector):

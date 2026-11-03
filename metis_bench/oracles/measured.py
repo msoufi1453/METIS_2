@@ -103,6 +103,17 @@ class MeasuredOracle(Oracle):
 MEASURED = ('pure', 'borkowski', 'cetch_yield', 'cetch_efficiency')
 
 
+def _cell_growth():
+    from .cell_growth import CellGrowthOracle
+    return CellGrowthOracle()
+
+
+# Measured datasets with their own oracle class (and data that is not in the repository).
+OTHER_MEASURED = {'cell_growth': _cell_growth}
+
+
 @functools.lru_cache(maxsize=8)
 def build_measured(name):
+    if name in OTHER_MEASURED:
+        return OTHER_MEASURED[name]()
     return MeasuredOracle(name)

@@ -41,6 +41,8 @@ A benchmark harness for improving METIS, with exact regret:
 
 The runbook is in [docs/BENCHMARK.md](docs/BENCHMARK.md). Laptop-scale pilot results, which check the machinery and are not confirmatory evidence, are in [docs/PILOT_RESULTS.md](docs/PILOT_RESULTS.md).
 
+Current work (the synthetic phases are paused): TabPFN-3.5 with optional modules (distance penalty, fantasy batch, discrete hill-climbing) tested on measured data, and a point-and-click interface (`streamlit run gui/app.py`). Both are described in [docs/MODULES.md](docs/MODULES.md).
+
 ## Guide
 * Apart from the two Google Colab notebooks above that can be tailored for custom applications, all example notebooks used in this work along with their data (combinations and yields) are provided in the Examples/Applications folder of the METIS repository. 
 

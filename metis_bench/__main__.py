@@ -114,7 +114,10 @@ def main(argv=None):
         return 0
     if args.command == 'replay':
         from .replay import write_replay, write_schedule_tuning
-        write = write_schedule_tuning if cfg.get('tuning', {}).get('part') == 'schedule' else write_replay
+        if cfg.get('report') == 'modules':
+            from .modules_report import write_modules as write
+        else:
+            write = write_schedule_tuning if cfg.get('tuning', {}).get('part') == 'schedule' else write_replay
         print(write(cfg, pathlib.Path(args.out) / cfg['name']))
         return 0
     tasks = experiments.tasks(cfg, args.out)
@@ -140,7 +143,9 @@ def main(argv=None):
         if problem:
             print(problem, file=sys.stderr)
             return 2
-    failures = run_tasks(tasks, jobs=args.jobs, gpu_jobs=args.gpu_jobs)
+    # Flushed, so progress shows up even when output goes to a log file.
+    failures = run_tasks(tasks, jobs=args.jobs, gpu_jobs=args.gpu_jobs,
+                         progress=lambda line: print(line, flush=True))
     for path, error in failures:
         print('FAILED', path, '\n', error, file=sys.stderr)
     if args.command == 'tune' and not failures:

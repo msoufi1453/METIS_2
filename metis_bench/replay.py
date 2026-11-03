@@ -27,13 +27,19 @@ import pandas as pd
 from .report import GRID, INK, INK_2, PALETTE, SURFACE, _figure, _style
 
 DATASET_LABELS = {'pure': 'PURE', 'borkowski': 'Borkowski', 'cetch_yield': 'CETCH yield',
-                  'cetch_efficiency': 'CETCH efficiency'}
+                  'cetch_efficiency': 'CETCH efficiency', 'cell_growth': 'Cell growth',
+                  'synthetic': 'Synthetic (12 factors)'}
 # Display names; arms not listed keep their own name.
-ARM_LABELS = {'incumbent': 'XGBoost (METIS)', 'linear': 'Linear', 'tabpfn35': 'TabPFN-3.5', 'random': 'Random'}
+ARM_LABELS = {'incumbent': 'XGBoost (METIS)', 'linear': 'Linear', 'tabpfn35': 'TabPFN-3.5', 'random': 'Random',
+              'control': 'TabPFN, no module', 'penalty_low': 'Penalty, low', 'penalty_high': 'Penalty, high',
+              'fantasy': 'Fantasy batch', 'hillclimb': 'Hill-climbing'}
 # Colour follows the model in every figure: the first three categorical slots (validated
 # for colour-vision deficiency on all pairs) for the models, a neutral grey for the
-# random baseline. Other arms take the remaining slots in order.
-ARM_COLORS = {'incumbent': PALETTE[0], 'linear': PALETTE[1], 'tabpfn35': PALETTE[2], 'random': '#8a8984'}
+# random baseline. Other arms take the remaining slots in order. The module tests
+# (experiments/tabpfn_modules.yaml) have their own set: dark grey for the control.
+ARM_COLORS = {'incumbent': PALETTE[0], 'linear': PALETTE[1], 'tabpfn35': PALETTE[2], 'random': '#8a8984',
+              'control': INK_2, 'penalty_low': PALETTE[0], 'penalty_high': PALETTE[6], 'fantasy': PALETTE[1],
+              'hillclimb': PALETTE[2]}
 NOT_FOUND = 11      # x position for "never measured the best recipe" in the comparison figure
 
 
@@ -115,6 +121,13 @@ def plot_yields(points, path, datasets, arms):
         for j, arm in enumerate(arms):
             ax = axes[i][j]
             g = sub[sub.arm == arm]
+            if g.empty:      # an arm limited to other datasets (e.g. hill-climbing)
+                _style(ax)
+                ax.text(0.5, 0.5, 'not run on\nthis dataset', transform=ax.transAxes, ha='center', va='center',
+                        fontsize=8, color=INK_2)
+                if i == 0:
+                    ax.set_title(_label(arm), fontsize=10, color=INK)
+                continue
             ks = sorted(g['round'].unique())
             values = [g.loc[g['round'] == k, 'yield'].to_numpy() for k in ks]
             ax.boxplot(values, positions=ks, widths=0.74, showfliers=False, patch_artist=True, zorder=2,
@@ -130,8 +143,9 @@ def plot_yields(points, path, datasets, arms):
             if i == 0:
                 ax.set_title(_label(arm), fontsize=10, color=INK)
             if j == 0:
-                measure = 'efficiency' if 'efficiency' in ds else 'yield'
-                ax.set_ylabel('{}\nmeasured {}'.format(DATASET_LABELS.get(ds, ds), measure), fontsize=8)
+                measure = {'cell_growth': 'measured K (max OD600)', 'synthetic': 'true value'}.get(
+                    ds, 'measured efficiency' if 'efficiency' in ds else 'measured yield')
+                ax.set_ylabel('{}\n{}'.format(DATASET_LABELS.get(ds, ds), measure), fontsize=8)
             if i == len(datasets) - 1:
                 ax.set_xlabel('Round')
                 ax.set_xticks(ks)
@@ -399,8 +413,11 @@ def write_schedule_tuning(cfg, exp_dir):
     for c, ds in enumerate(datasets):
         ax = axes[0][c]
         for arm, label, color, ls in shown:
-            g = best[(best.dataset == ds) & (best.arm == arm)].groupby('round').best_fraction.mean()
-            line, = ax.plot(g.index, g.to_numpy(), color=color, lw=2, ls=ls, label=label)
+            g = best[(best.dataset == ds) & (best.arm == arm)].groupby('round').best_fraction.agg(['mean', 'sem'])
+            se = g['sem'].fillna(0.0)
+            ax.fill_between(g.index, g['mean'] - se, np.minimum(g['mean'] + se, 1.0), color=color, alpha=0.12, lw=0,
+                            zorder=2)
+            line, = ax.plot(g.index, g['mean'].to_numpy(), color=color, lw=2, ls=ls, label=label, zorder=3)
             if c == 0:
                 handles.append(line)
         _style(ax)
@@ -410,7 +427,8 @@ def write_schedule_tuning(cfg, exp_dir):
             ax.set_ylabel("best measured yield so far\n(fraction of the pool's best)", fontsize=8)
     fig.legend(handles, [h.get_label() for h in handles], loc='lower center', ncol=3, frameon=False, fontsize=8,
                labelcolor=INK_2)
-    fig.suptitle('Best recipe found so far with TabPFN-3.5 (mean over {} seeds)'.format(runs.seed.nunique()),
+    fig.suptitle('Best recipe found so far with TabPFN-3.5 (mean over {} seeds; band = ±1 standard error)'.format(
+        runs.seed.nunique()),
                  fontsize=10, color=INK, x=0.01, ha='left')
     fig.tight_layout(rect=(0, 0.08, 1, 1))
     fig.savefig(out / 'schedule_best_so_far.png', dpi=150, facecolor=SURFACE)
