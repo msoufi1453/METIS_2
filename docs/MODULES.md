@@ -75,6 +75,16 @@ campaigns take about a minute or two on an RTX 5090 laptop; fantasy and hill-cli
 TabPFN several times per round (10 fits per round for fantasy). Expect roughly 1 to 3
 hours in all. Finished campaigns are skipped on a re-run.
 
+Not on a CPU: timed on a 4-core laptop CPU (i7-8665U), TabPFN-3.5 with 8 estimators
+scores about 11 recipes per second (3 per second on cell growth, which has 162 inputs), so
+the full test would take about 180 hours, most of it the fantasy arms.
+
+**SLURM GPU cluster.** `scripts/slurm_tabpfn_modules.sh` runs the pilot, the full test and
+the figures on one GPU; its header lists the one-time setup on a login node (environment,
+data file, `TABPFN_TOKEN`, caching the weights, since compute nodes often have no
+internet). Submit with `sbatch scripts/slurm_tabpfn_modules.sh`, adding the partition or
+account the cluster requires.
+
 Figures and tables land in `results/tabpfn_modules/replay/`, the only part of the results
 that is committed (the raw results contain measured values from the cell-growth data).
 
