@@ -10,7 +10,10 @@
 # Then submit from the repository folder (the job inherits TABPFN_TOKEN from this shell):
 #   sbatch scripts/slurm_tabpfn_modules.sh
 # Add the partition or account your cluster requires, e.g. sbatch --partition=gpu --account=abc123 ...
+# MPCDF Raven (one A100 on a shared GPU node):
+#   sbatch --constraint=gpu --gres=gpu:a100:1 --cpus-per-task=18 --mem=125000 scripts/slurm_tabpfn_modules.sh
 #
+# The job runs the synced .venv directly, so it needs no internet.
 # Finished campaigns are skipped, so a job that hits its time limit can simply be resubmitted.
 #SBATCH --job-name=tabpfn-modules
 #SBATCH --gres=gpu:1
@@ -21,7 +24,8 @@
 set -euo pipefail
 cd "${SLURM_SUBMIT_DIR:-$(dirname "$0")/..}"
 
-bench() { uv run --extra tabpfn35 --extra "${TORCH:-cu126}" python -W ignore -m metis_bench "$@"; }
+# The environment from `uv sync`, called directly: `uv run` may try to reach the internet.
+bench() { .venv/bin/python -W ignore -m metis_bench "$@"; }
 
 if [[ "${1:-}" == "--download-only" ]]; then
   # One tiny fit and prediction downloads the weights into the TabPFN cache in $HOME.
