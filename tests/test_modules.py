@@ -150,6 +150,20 @@ def test_module_experiment_tasks():
     assert len(tasks) == 3 * (5 + 4 + 5)
 
 
+def test_paired_effects_and_category_groups():
+    import pandas as pd
+    from metis.space import DesignSpace, Factor
+    from metis_bench.modules_report import _same_levels, paired_effects
+    runs = pd.DataFrame({'dataset': ['d'] * 4, 'arm': ['control', 'control', 'm', 'm'], 'seed': [0, 1, 0, 1],
+                         'auc_norm_regret': [0.3, 0.4, 0.2, 0.5], 'best_fraction': [0.8, 0.9, 1.0, 0.7]})
+    e = paired_effects(runs).sort_values('seed')
+    assert np.allclose(e.d_auc, [-0.1, 0.1]) and np.allclose(e.d_best, [0.2, -0.2])
+    space = DesignSpace([Factor('a', [0.0, 1.0, 2.0]), Factor('strain', [1.0], alternatives=('x', 'y', 'z'))])
+    picks = np.array([[1, 0, 0], [1, 0, 2], [2, 0, 1], [1, 0, 1]])     # three picks share a=1, one has a=2
+    groups = _same_levels(space, picks, np.arange(8.0).reshape(4, 2))
+    assert [(list(p), n) for p, n in groups] == [([0.0, 1.0], 3)]
+
+
 def test_task_key_ignores_snapshot_off():
     task = ({'measured': 'borkowski', 'noise': 'none'}, {'name': 'x'}, 0, {'batch_size': 10}, 'results/a/b/c/s.json')
     off = (task[0], task[1], 0, {'batch_size': 10, 'snapshot': False}, task[4])

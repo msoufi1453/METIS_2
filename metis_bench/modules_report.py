@@ -4,6 +4,8 @@
 
 Writes to ``results/<experiment>/replay/``:
 
+* ``module_effects.png``: each module against the control, paired by seed: the change in
+  AUC regret and in the best value found (one dot per seed, a bar at the mean).
 * ``best_so_far.png``: best measured value so far as a fraction of the dataset's best,
   mean over seeds with a band of one standard error.
 * ``yields_by_round.png``: the measured value of every recipe each arm chose, per round.
@@ -15,10 +17,13 @@ Writes to ``results/<experiment>/replay/``:
 * ``pca_<dataset>.png`` (seeds with snapshots): every candidate in the round's pool on
   the dataset's first two principal components, coloured by its score percentile within
   that pool; recipes measured before the round in grey, the chosen batch ringed, recipes
-  found by hill-climbing as triangles. The PCA is fitted once per dataset, on all its
-  measured recipes (or 10,000 random feasible ones for the synthetic function), so every
-  panel shares the same axes.
-* ``summary.csv`` / ``summary.md``: per dataset and arm, and paired against the control.
+  found by hill-climbing as triangles, and "xn" where n picks differ only in a categorical
+  factor (on the cell-growth grid: one medium with n strains). The PCA
+  is fitted once per dataset, on all its measured recipes (or 10,000 random feasible ones
+  for the synthetic function), so every panel shares the same axes.
+* ``summary.csv`` / ``summary.md``: per dataset and arm; each module paired by seed
+  against the control; held-out accuracy; for the cell-growth grid, how many distinct
+  media and strains each batch covers.
 """
 import json
 import pathlib
@@ -87,6 +92,72 @@ def _mean_se_panels(frame, metrics, path, datasets, arms, title):
     fig.tight_layout(rect=(0, 0.08 if len(metrics) == 1 else 0.05, 1, 1))
     fig.savefig(path, dpi=150, facecolor=SURFACE)
     plt.close(fig)
+
+
+def paired_effects(runs, reference='control'):
+    """One row per (dataset, module, seed): the module's AUC regret and best fraction minus the
+    reference arm's, same seed (so the same round-1 recipes)."""
+    ref = runs[runs.arm == reference].set_index(['dataset', 'seed'])
+    rows = []
+    for _, r in runs[runs.arm != reference].iterrows():
+        if (r.dataset, r.seed) not in ref.index:
+            continue
+        base = ref.loc[(r.dataset, r.seed)]
+        rows.append({'dataset': r.dataset, 'arm': r.arm, 'seed': r.seed,
+                     'd_auc': r.auc_norm_regret - base.auc_norm_regret,
+                     'd_best': r.best_fraction - base.best_fraction})
+    return pd.DataFrame(rows)
+
+
+def plot_effects(effects, path, datasets, arms):
+    """Rows: change in AUC regret (lower = better) and in best value found (higher = better)."""
+    from matplotlib.ticker import FuncFormatter
+    colors = _colors(arms)
+    modules = [a for a in arms if a in set(effects.arm)]
+    metrics = [('d_auc', 'change in AUC regret\n(below 0 = better than no module)'),
+               ('d_best', 'change in best value found\n(above 0 = better; fraction of best)')]
+    plt, fig, axes = _figure(len(metrics), len(datasets), figsize=(3.8 * len(datasets), 6.4), squeeze=False)
+    for i, (value, ylabel) in enumerate(metrics):
+        lim = float(np.nanmax(np.abs(effects[value]))) * 1.15 or 0.1
+        for j, ds in enumerate(datasets):
+            ax = axes[i][j]
+            here = [m for m in modules if ((effects.dataset == ds) & (effects.arm == m)).any()]
+            ax.axhline(0, color=INK_2, lw=0.9, ls=(0, (4, 3)), zorder=1)
+            for x, m in enumerate(here):
+                v = effects[(effects.dataset == ds) & (effects.arm == m)][value].to_numpy()
+                offsets = np.linspace(-0.12, 0.12, len(v)) if len(v) > 1 else np.zeros(1)
+                ax.scatter(x + offsets, v, s=30, color=colors[m], edgecolors=SURFACE, linewidths=0.8, zorder=3)
+                ax.plot([x - 0.28, x + 0.28], [v.mean()] * 2, color=INK, lw=2, solid_capstyle='round', zorder=4)
+            _style(ax)
+            ax.set_xlim(-0.6, max(len(here), 1) - 0.4)
+            ax.set_ylim(-lim, lim)
+            ax.set_xticks(range(len(here)))
+            ax.set_xticklabels([_label(m).replace(', ', '\n').replace(' ', '\n').replace('-', '-\n') for m in here],
+                               fontsize=7.5, color=INK_2)
+            ax.yaxis.set_major_formatter(FuncFormatter(lambda v, _: '{:+.2f}'.format(v).replace('-', '−')
+                                                       if v else '0'))
+            if i == 0:
+                ax.set_title(DATASET_LABELS.get(ds, ds), fontsize=10, color=INK, loc='left')
+            if j == 0:
+                ax.set_ylabel(ylabel, fontsize=8)
+    fig.suptitle('Each module against TabPFN with no module, paired by seed (same first batch). Dots: seeds; '
+                 'bar: mean.', fontsize=10, color=INK, x=0.01, ha='left')
+    fig.tight_layout()
+    fig.savefig(path, dpi=150, facecolor=SURFACE)
+    plt.close(fig)
+
+
+def _same_levels(space, picks, xy):
+    """Picks that differ only in categorical factors (e.g. one medium, several strains):
+    [(position of the first, count)] for groups of 2 or more."""
+    groups = {}
+    for row, p in zip(picks, xy):
+        key = row[space.level_dims].tobytes()
+        if key in groups:
+            groups[key][1] += 1
+        else:
+            groups[key] = [p, 1]
+    return [(p, n) for p, n in groups.values() if n > 1]
 
 
 def plot_hillclimb_steps(diag, path, max_steps=20):
@@ -184,9 +255,11 @@ def plot_pca(cfg, exp_dir, dataset, arms, out, seed=0, rounds=(2, 4, 6, 8, 10)):
             xy = pca.transform(space.embedding(cand))
             score = snap['r{}_score'.format(k)]
             pct = (np.argsort(np.argsort(score, kind='stable'), kind='stable') + 0.5) / len(score)
-            order = np.argsort(pct)
-            scatter = ax.scatter(xy[order, 0], xy[order, 1], c=pct[order], cmap=cmap, vmin=0, vmax=1, s=3,
-                                 linewidths=0, rasterized=True, zorder=2)
+            # Random drawing order: where points overlap, the colour shows the local mix of scores
+            # (drawing the best last would make a dense map look uniformly dark).
+            order = np.random.default_rng(k).permutation(len(score))
+            scatter = ax.scatter(xy[order, 0], xy[order, 1], c=pct[order], cmap=cmap, vmin=0, vmax=1,
+                                 s=3 if len(score) <= 5000 else 1.5, linewidths=0, rasterized=True, zorder=2)
             before = measured_idx[measured_round < k]
             if len(before):
                 m = pca.transform(space.embedding(before))
@@ -199,6 +272,14 @@ def plot_pca(cfg, exp_dir, dataset, arms, out, seed=0, rounds=(2, 4, 6, 8, 10)):
             if len(climb_pick):
                 ax.scatter(xy[climb_pick, 0], xy[climb_pick, 1], s=40, marker='^', facecolors=PALETTE[2],
                            edgecolors=INK, linewidths=0.8, zorder=5)
+            placed = []
+            for position, n in _same_levels(space, cand[chosen], xy[chosen]):
+                # Labels of nearby groups take turns: above right, below right, above left, below left.
+                near = sum(bool(np.all(np.abs(position - p) < 0.08 * (hi - lo))) for p in placed)
+                offset = [(5, 4), (5, -11), (-20, 4), (-20, -11)][near % 4]
+                ax.annotate('×{}'.format(n), position, xytext=offset, textcoords='offset points', fontsize=7.5,
+                            color=INK, fontweight='bold', zorder=6)
+                placed.append(position)
             ax.set_xlim(lo[0], hi[0])
             ax.set_ylim(lo[1], hi[1])
             ax.set_xticks([])
@@ -209,8 +290,9 @@ def plot_pca(cfg, exp_dir, dataset, arms, out, seed=0, rounds=(2, 4, 6, 8, 10)):
                 ax.set_ylabel(_label(arm), fontsize=9, color=INK)
     ev = pca.explained_variance_ratio_
     fig.suptitle('{}: the scored pool each round (seed {}); axes PC1 ({:.0%}) and PC2 ({:.0%}) of all recipes.\n'
-                 'Dots: candidates, darker = higher score. Grey: measured before the round. Rings: the batch. '
-                 'Triangles: picked after hill-climbing.'.format(DATASET_LABELS.get(dataset, dataset), seed, ev[0],
+                 'Dots: candidates, darker = higher score. Grey: measured before the round. Rings: the batch '
+                 '(×n: n picks differing only in a category, e.g. one medium with n strains). Triangles: picked '
+                 'after hill-climbing.'.format(DATASET_LABELS.get(dataset, dataset), seed, ev[0],
                                                                  ev[1]),
                  fontsize=9, color=INK, x=0.01, ha='left')
     fig.tight_layout(rect=(0, 0.075, 1, 0.95))
@@ -238,6 +320,10 @@ def write_modules(cfg, exp_dir):
                                             "best)")], out / 'best_so_far.png', datasets, arms,
                     'Best recipe found so far (mean over {} seeds; band: one standard error)'.format(runs.seed.nunique()))
     plot_yields(points, out / 'yields_by_round.png', datasets, arms)
+    reference = cfg.get('reference', 'control')
+    effects = paired_effects(runs, reference)
+    if not effects.empty:
+        plot_effects(effects, out / 'module_effects.png', datasets, arms)
     if not diag.empty:
         _mean_se_panels(diag, [('batch_spread', 'mean distance between\nrecipes in the batch'),
                                ('batch_min_gap', 'smallest distance between\nrecipes in the batch')],
@@ -288,5 +374,55 @@ def write_modules(cfg, exp_dir):
                 '{}/{}'.format(int(s.capped), int(s.climbs)) if has_climb else '-',
                 int(s.climbed_picked) if has_climb else '-'))
     lines += _paired_lines(cfg, runs, datasets)
+    if not effects.empty:
+        lines += ['', '## Each module against the control ({}), seed by seed'.format(_label(reference)), '',
+                  'AUC regret of the module minus that of {} in the same seed (negative = better), and the '
+                  'number of seeds in which the module was better.'.format(_label(reference)), '',
+                  '| dataset | module | difference per seed | mean | better in |', '|---|---|---|---|---|']
+        for ds in datasets:
+            for arm in arms:
+                e = effects[(effects.dataset == ds) & (effects.arm == arm)].sort_values('seed')
+                if e.empty:
+                    continue
+                lines.append('| {} | {} | {} | {:+.3f} | {}/{} |'.format(
+                    DATASET_LABELS.get(ds, ds), _label(arm), ', '.join('{:+.3f}'.format(v) for v in e.d_auc),
+                    e.d_auc.mean(), int((e.d_auc < 0).sum()), len(e)))
+    accuracy = runs.groupby(['dataset', 'arm'])[['final_test_r2', 'final_test_spearman', 'final_test_cov80']].mean()
+    lines += ['', '## Held-out accuracy after the last round', '',
+              "R2 and Spearman rank correlation on the held-out recipes (synthetic: 1,000 random ones), and the share "
+              "inside the model's 80% interval. Mean over seeds.", '',
+              '| dataset | arm | R2 | Spearman | 80% coverage |', '|---|---|---|---|---|']
+    for ds in datasets:
+        for arm in arms:
+            if (ds, arm) in accuracy.index:
+                a = accuracy.loc[(ds, arm)]
+                lines.append('| {} | {} | {:.3f} | {:.3f} | {:.3f} |'.format(
+                    DATASET_LABELS.get(ds, ds), _label(arm), a.final_test_r2, a.final_test_spearman,
+                    a.final_test_cov80))
+    cover = _media_per_batch(cfg, exp_dir) if 'cell_growth' in datasets else None
+    if cover is not None:
+        lines += ['', '## Cell growth: what a batch covers', '',
+                  'Distinct media and strains among the 10 recipes of a batch (mean over rounds 2-10 and seeds).', '',
+                  '| arm | media | strains |', '|---|---|---|']
+        for arm in arms:
+            if arm in cover.index:
+                lines.append('| {} | {:.1f} | {:.1f} |'.format(_label(arm), cover.loc[arm, 'media'],
+                                                               cover.loc[arm, 'strains']))
     (out / 'summary.md').write_text('\n'.join(lines) + '\n', encoding='utf-8')
     return out
+
+
+def _media_per_batch(cfg, exp_dir):
+    """Cell growth: distinct media (composition) and strains per guided batch, mean per arm."""
+    space = _oracle_for_dataset(cfg, 'cell_growth').space
+    rows = []
+    for path in sorted(pathlib.Path(exp_dir).rglob('seed_*.json')):
+        r = json.loads(path.read_text())
+        if r['problem']['subtype'] != 'cell_growth':
+            continue
+        idx, rnd = np.array(r['evaluated']['idx'], dtype=np.int64), np.array(r['evaluated']['round'])
+        for k in sorted(set(rnd) - {1}):
+            batch = idx[rnd == k]
+            rows.append({'arm': r['arm_name'], 'media': len({b[:space.n_conc].tobytes() for b in batch}),
+                         'strains': len(set(batch[:, space.strain_dim]))})
+    return pd.DataFrame(rows).groupby('arm').mean() if rows else None

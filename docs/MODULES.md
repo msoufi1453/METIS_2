@@ -4,6 +4,77 @@ Exploratory tests (amendment 7 in [PREREGISTRATION.md](PREREGISTRATION.md)): thr
 modules, each compared one at a time with plain TabPFN-3.5. Experiment file:
 [`experiments/tabpfn_modules.yaml`](../experiments/tabpfn_modules.yaml).
 
+## Results (run of 4 November 2026)
+
+All 42 campaigns ran on one NVIDIA A100 of MPCDF's Raven cluster (job 31902548: 17 minutes
+of campaigns, 22 with the pilot and the figures). Every result was checked before analysis:
+the settings, TabPFN-3.5 with 8 estimators and its tuned schedule, the GPU actually used
+(`cuda:0`), every recipe measured once, and the code fingerprint of commit `f4194c5`
+(`7a5cd067f3fc9029`). With three seeds the results are exploratory: look for a consistent
+direction, not significance. All figures and tables:
+[`results/tabpfn_modules/replay/`](../results/tabpfn_modules/replay/).
+
+![Each module against plain TabPFN, paired by seed](../results/tabpfn_modules/replay/module_effects.png)
+
+| dataset | arm | best found by round 10 | change in AUC regret vs no module | better in |
+|---|---|---|---|---|
+| Borkowski | TabPFN, no module | 0.90 | | |
+| | penalty, low | **1.00** | −0.063 | 3 of 3 seeds |
+| | penalty, high | 0.95 | −0.061 | 2 of 3 |
+| | fantasy batch | **1.00** | **−0.097** | 3 of 3 |
+| Cell growth | TabPFN, no module | 0.76 | | |
+| | penalty, low | **0.91** | **−0.173** | 3 of 3 |
+| | penalty, high | 0.86 | −0.114 | 3 of 3 |
+| | fantasy batch | 0.88 | −0.168 | 3 of 3 |
+| | hill-climbing | 0.82 | −0.055 | 2 of 3 |
+| Synthetic | TabPFN, no module | 0.88 | | |
+| | penalty, low | 0.85 | +0.066 | 0 of 3 |
+| | penalty, high | 0.77 | +0.111 | 0 of 3 |
+| | fantasy batch | 0.87 | +0.038 | 0 of 3 |
+| | hill-climbing | **0.97** | **−0.062** | 3 of 3 |
+
+Best found: the best value measured by round 10 as a fraction of the dataset's best (mean of
+three seeds). AUC regret: the normalised regret averaged over rounds, so lower means good
+recipes sooner; the change is the module minus plain TabPFN in the same seed.
+
+1. **On the two measured datasets, spreading the batch out helps.** The low penalty and
+   the fantasy batch beat plain TabPFN in every seed on both datasets, and both found
+   Borkowski's best recipe in all three seeds (plain TabPFN in none). Plain TabPFN
+   clusters its picks: on cell growth its 10 recipes per round covered only 3.1 media on
+   average, i.e. one medium with many strains, against 10 media with either penalty (the
+   paper also found K varies more across media than across strains). Spreading also gave
+   the model better data: on cell growth its held-out R² rose from −0.03 to 0.21 (low
+   penalty) and its Spearman correlation from 0.29 to 0.50. The fantasy batch spread out
+   less (3.4 media per batch) but did as well on cell growth and best of all on Borkowski.
+2. **A low penalty is enough.** Three times the radius helped no more on the measured data,
+   and it was the worst arm on the synthetic function.
+3. **On the smooth synthetic function it is the other way round.** It has one broad optimum
+   and no noise, so concentrating near the predicted best pays: the penalties and the fantasy
+   batch did worse than plain TabPFN in every seed, and hill-climbing did better in every
+   seed (0.97 of the optimum against 0.88; the exact optimum in one seed). 237 of its 270
+   picks were recipes the random pool did not contain, found by climbing: the pool ceiling
+   of [PILOT_RESULTS.md](PILOT_RESULTS.md), removed. Climbs took a median of 6 moves: 2 in
+   round 2 (half exploration), 3 to 5 in rounds 3 to 5 and 7 to 8 from round 6 on; the
+   longest took 16, none reached the cap of 20.
+4. **On cell growth hill-climbing adds little** (better in 2 of 3 seeds). Every climb
+   stopped after at most 3 moves (median 1), and the move was almost always a strain swap
+   in the same medium (15 of the 16 new recipes in seed 0). It adds more picks in the same
+   few media (2.9 per batch) rather than better media.
+5. **Cost.** On the A100 a plain or penalty campaign took 5 s (Borkowski), 11 to 14 s (cell
+   growth) and 16 s (synthetic); hill-climbing 15 s and 28 s; the fantasy batch 44 s, 58 s
+   and 150 s, because it refits and rescores the pool after every pick.
+
+The modules fix different problems. The penalty and the fantasy batch fix clustered
+batches, which dominate on the measured datasets; hill-climbing fixes a candidate pool that
+lacks the best recipes, which dominates on the large, smooth synthetic space. For
+measured-data problems like these, the low penalty is the cheap choice. Next steps: the low
+penalty and hill-climbing together, more seeds before choosing defaults, and a rugged
+synthetic landscape (several peaks), where spreading may pay off as well.
+
+Limits: three seeds; one synthetic function (smooth, one broad optimum, noise-free); the
+cell-growth pool is a random 1,000 recipes per round by design; on the measured datasets
+the best recipe is the best measured one in the 80% candidate pool.
+
 ## What is compared
 
 Every arm is TabPFN-3.5 (8 estimators, its tuned exploration schedule, amendment 4) with
@@ -90,6 +161,8 @@ that is committed (the raw results contain measured values from the cell-growth 
 
 ## Figures
 
+* `module_effects.png`: each module against plain TabPFN, paired by seed: the change in AUC
+  regret and in the best value found (one dot per seed, a bar at the mean).
 * `best_so_far.png`: best measured value so far as a fraction of the dataset's best,
   mean over seeds with a band of one standard error.
 * `yields_by_round.png`: the measured value of every recipe each arm chose, per round.
@@ -101,9 +174,13 @@ that is committed (the raw results contain measured values from the cell-growth 
 * `pca_<dataset>.png`: seed 0, rounds 2, 4, 6, 8 and 10, one row per arm. Every candidate
   of the round's pool on the dataset's first two principal components, coloured by its
   score percentile in that pool; grey: recipes measured before the round; rings: the batch;
-  triangles: batch recipes found by hill-climbing. The PCA is fitted once per dataset, so
-  all panels share axes.
-* `summary.md`: per dataset and arm, and paired by seed against the control.
+  triangles: batch recipes found by hill-climbing; "×n": n picks that differ only in a
+  category (on cell growth: one medium with n strains). The PCA is fitted once per
+  dataset, so all panels share axes. On the synthetic function two axes capture only 20% of
+  the variation of uniformly random 12-factor recipes, so its map shows little structure;
+  `batch_spread.png` is the better clustering view there.
+* `summary.md`: per dataset and arm; each module against the control, seed by seed;
+  held-out accuracy; for cell growth, the media and strains each batch covers.
 
 With three seeds these are exploratory: look for consistent direction across datasets,
 not significance.
