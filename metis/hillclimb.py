@@ -53,7 +53,7 @@ def climb(space, surrogate, acquisition, pool, pool_prediction, measured_keys=()
             owners += [i] * len(keep)
         if not rows:
             break
-        rows, owners = np.array(rows, dtype=np.int64), np.array(owners)
+        rows, owners = np.array(rows, dtype=pool.dtype), np.array(owners)
         keys = space.keys(rows)
         todo = sorted({j for j, k in enumerate(keys) if k not in cache}, key=lambda j: keys[j])
         if todo:
@@ -88,7 +88,7 @@ def climb(space, surrogate, acquisition, pool, pool_prediction, measured_keys=()
         if key not in in_pool and key not in seen:
             seen.add(key)
             new.append(row)
-    new = np.array(new, dtype=np.int64).reshape(-1, pool.shape[1])
+    new = np.array(new, dtype=pool.dtype).reshape(-1, pool.shape[1])
     new_keys = space.keys(new)
     new_prediction = Prediction(np.array([cache[k][0] for k in new_keys], float),
                                 np.array([cache[k][1] for k in new_keys], float))

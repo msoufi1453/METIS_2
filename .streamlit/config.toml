@@ -1,0 +1,9 @@
+# Settings for the METIS app (gui/app.py), read when Streamlit starts from this folder.
+
+[server]
+# Only this computer can open the app. Streamlit's default lets every computer on the same
+# network open it, and with it the campaign's data. Remove this line to share the app.
+address = "localhost"
+
+[browser]
+gatherUsageStats = false

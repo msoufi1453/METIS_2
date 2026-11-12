@@ -14,6 +14,20 @@ Pandi A*‡, Diehl C*, Yazdizadeh Kharrazi A, Scholz SA, Bobkova E, Faure L, Nat
 
 
 
+## The METIS app
+A point-and-click app plans a campaign round by round: define the variables, get the recipes of each round
+(a Latin hypercube first, then chosen by TabPFN-3.5), download a workbook to fill in, upload it to continue.
+It includes liquid handling (pipettable concentrations, a pipetting table, an iDOT protocol), a PCA map,
+importance and interaction rankings, and a tutorial on the Borkowski cell-free data.
+
+```
+uv sync --extra tabpfn35 --extra cpu --extra gui
+.venv/Scripts/python -m streamlit run gui/app.py        # .venv/bin/python on macOS and Linux
+```
+
+The same functions are available in Python as `metis.campaign` (`Campaign`, `Continuous`, `Discrete`,
+`Categorical`, `LiquidHandling`). Guide: [docs/APP.md](docs/APP.md).
+
 ## Package layout (this fork)
 `utils.py` is now a thin shim over the `metis` package, so `from utils import *` in every notebook keeps working with the same function signatures. Run notebooks locally from the repository root (or `pip install -e .`), since the shim imports `metis`.
 
@@ -27,6 +41,8 @@ Pandi A*‡, Diehl C*, Yazdizadeh Kharrazi A, Scholz SA, Bobkova E, Faure L, Nat
 
 | `metis.initialization` | Initial designs on the droplet grid: random (v1), scrambled Sobol, maximin LHS, fill-the-unsampled-region for imported data |
 | `metis.schedules` | Exploration schedules: v1 list, constant, linear/exponential decay, GP-UCB rate, adaptive |
+| `metis.campaign` | Campaigns in a few lines, and the engine of the app: variables, liquid handling, rounds, the Excel workbook, pipetting sheet, PCA map, importance, interactions |
+| `metis.idot` | iDOT protocol files (`.idotx`), a copy of [idot-protocol-builder](https://github.com/msoufi1453/idot-protocol-builder) |
 
 Environment: `uv sync --extra tabpfn35 --extra cpu` (or `--extra cu126` / `cu128` on an NVIDIA GPU) creates the pinned environment from `uv.lock` (Python 3.11). `uv run pytest` runs the tests; `tests/test_regression_legacy.py` checks that one seeded METIS round reproduces the original output byte for byte.
 
@@ -41,7 +57,7 @@ A benchmark harness for improving METIS, with exact regret:
 
 The runbook is in [docs/BENCHMARK.md](docs/BENCHMARK.md). Laptop-scale pilot results, which check the machinery and are not confirmatory evidence, are in [docs/PILOT_RESULTS.md](docs/PILOT_RESULTS.md).
 
-Current work (the synthetic phases are paused): TabPFN-3.5 with optional modules (distance penalty, fantasy batch, discrete hill-climbing) tested on measured data, and a point-and-click interface (`streamlit run gui/app.py`). Both are described in [docs/MODULES.md](docs/MODULES.md).
+Current work (the synthetic phases are paused): TabPFN-3.5 with optional modules (distance penalty, fantasy batch, discrete hill-climbing) tested on measured data ([docs/MODULES.md](docs/MODULES.md)), and the app above.
 
 ## Guide
 * Apart from the two Google Colab notebooks above that can be tailored for custom applications, all example notebooks used in this work along with their data (combinations and yields) are provided in the Examples/Applications folder of the METIS repository. 

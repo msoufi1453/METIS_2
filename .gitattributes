@@ -1,2 +1,4 @@
 # Golden regression outputs are compared byte for byte; never convert line endings.
 tests/regression/golden/** -text
+# The iDOT template must stay byte for byte (UTF-8 with a byte-order mark, CRLF line endings).
+metis/idot/*.idotx -text

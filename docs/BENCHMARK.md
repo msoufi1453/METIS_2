@@ -1,7 +1,7 @@
 # METIS benchmark: runbook
 
 > **Paused (amendment 7, 2026-11-03).** The synthetic Phases 2 and 3 below are on hold.
-> Current work: TabPFN-3.5 module tests on measured data and the GUI, in
+> Current work: the METIS app ([APP.md](APP.md)) and TabPFN-3.5 module tests on measured data, in
 > [MODULES.md](MODULES.md).
 
 Everything runs from the repository root in the pinned environment:

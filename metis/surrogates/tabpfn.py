@@ -78,14 +78,32 @@ class TabPFNSurrogate(Surrogate):
         return self
 
     def predict(self, X):
+        return self._predict(X)[0]
+
+    def predict_interval(self, X, level=0.8):
+        """The interval comes from the quantiles of TabPFN's predictive distribution, not
+        from a normal approximation. Like ``std`` it describes a measurement, noise included."""
+        tail = (1.0 - float(level)) / 2.0
+        prediction, quantiles = self._predict(X, quantiles=[tail, 1.0 - tail])
+        return prediction, quantiles[0], quantiles[1]
+
+    def _predict(self, X, quantiles=None):
         X = as_2d_float(X)
-        means, stds = [], []
+        means, stds, parts = [], [], []
+        options = {} if quantiles is None else {'quantiles': [float(q) for q in quantiles]}
         for start in range(0, len(X), self.chunk_size):
-            out = self.model_.predict(X[start:start + self.chunk_size], output_type='full')
+            out = self.model_.predict(X[start:start + self.chunk_size], output_type='full', **options)
             means.append(np.asarray(out['mean'], dtype=float))
             variance = out['criterion'].variance(out['logits']).detach().cpu().numpy()
             stds.append(np.sqrt(np.maximum(variance.astype(float), 0.0)))
-        return Prediction(mean=np.concatenate(means), std=np.concatenate(stds))
+            if quantiles is not None:
+                parts.append([np.asarray(q, dtype=float) for q in out['quantiles']])
+        prediction = Prediction(mean=np.concatenate(means) if means else np.empty(0),
+                                std=np.concatenate(stds) if stds else np.empty(0))
+        if quantiles is None:
+            return prediction, None
+        return prediction, [np.concatenate([p[k] for p in parts]) if parts else np.empty(0)
+                            for k in range(len(quantiles))]
 
     def clone(self):
         """An unfitted twin with the same settings and seed, for fantasies.

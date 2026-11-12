@@ -43,6 +43,16 @@ class Surrogate:
     def predict(self, X):
         raise NotImplementedError
 
+    def predict_interval(self, X, level=0.8):
+        """``(prediction, lower, upper)``: the central interval expected to hold a share
+        ``level`` of the values. The default treats the prediction as normal
+        (``mean +- z * std``); models with a full predictive distribution override it."""
+        from scipy.stats import norm
+        prediction = self.predict(X)
+        half = float(norm.ppf(0.5 + level / 2.0)) * np.asarray(prediction.std, dtype=float)
+        mean = np.asarray(prediction.mean, dtype=float)
+        return prediction, mean - half, mean + half
+
     def refit(self, X, y, noise_var=None):
         """Refit on new data keeping hyperparameters fixed. Defaults to ``fit``."""
         return self.fit(X, y, noise_var=noise_var)

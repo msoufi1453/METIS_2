@@ -1,4 +1,4 @@
-# TabPFN module tests and the GUI
+# TabPFN module tests
 
 Exploratory tests (amendment 7 in [PREREGISTRATION.md](PREREGISTRATION.md)): three optional
 modules, each compared one at a time with plain TabPFN-3.5. Experiment file:
@@ -185,30 +185,8 @@ that is committed (the raw results contain measured values from the cell-growth 
 With three seeds these are exploratory: look for consistent direction across datasets,
 not significance.
 
-## The GUI
+## The app
 
-```powershell
-uv sync --extra tabpfn35 --extra cpu --extra gui        # or cu128 instead of cpu on the GPU laptop
-.\.venv\Scripts\python.exe -m streamlit run gui/app.py
-```
-
-It opens in the browser:
-
-1. **Data**: upload a CSV or Excel table (one row per recipe, one column per factor, one
-   result column), or pick an example (Borkowski, PURE, CETCH). Choose the result to
-   maximise, the columns to ignore (IDs) and which columns are numeric or categorical
-   factors. Rows without a result are candidates.
-2. **Explore (PCA)**: the recipes on their first two principal components, coloured by
-   the result; which factors spread the recipes out (PCA loadings, a property of the
-   design); and which factors the model relies on (the drop in R^2 when a factor is
-   shuffled).
-3. **Next batch**: model (TabPFN-3.5, XGBoost as in METIS v1, Gaussian process, linear),
-   round number and planned rounds (for the exploration schedule), batch size, candidates
-   (new combinations of the observed levels, or the table's rows without a result), and
-   the modules: batch rule (top scores, distance penalty low/high, fantasy batch),
-   hill-climbing on or off, and the PCA map of the scored candidates. The batch can be
-   downloaded as CSV.
-
-The logic is in `gui/core.py` (tested in `tests/test_gui.py`, including a headless run of
-the page); `gui/app.py` is the page. TabPFN-3.5 needs its licence accepted or
-`TABPFN_TOKEN` set in the shell that starts the app.
+The modules are switches in the METIS app: the distance penalty and the fantasy batch on
+the set-up screen, hill-climbing on the round screen. The app, its screens and the package
+behind it (`metis.campaign`) are described in [APP.md](APP.md).

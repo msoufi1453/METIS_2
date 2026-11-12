@@ -1,7 +1,7 @@
 [project]
 name = "metis-bo"
-version = "0.2.0"
-description = "METIS active-learning workflow as a package with pluggable surrogates and acquisitions, plus a benchmark harness."
+version = "0.3.0"
+description = "METIS active-learning workflow as a package: campaigns in a few lines (metis.campaign), pluggable surrogates and acquisitions, an app and a benchmark harness."
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = "==3.11.*"
@@ -33,7 +33,8 @@ tabpfn35 = ["tabpfn==9.2.0", "torch==2.7.1"]
 #   cu128 - NVIDIA RTX 50 series (Blackwell; driver >= 570)
 # e.g. `uv sync --extra tabpfn --extra cu126`
 cpu = ["torch==2.7.1"]
-# The point-and-click interface (gui/app.py): `uv run --extra gui streamlit run gui/app.py`.
+# The app (gui/app.py, docs/APP.md): `uv sync --extra tabpfn35 --extra cpu --extra gui`, then
+# `python -m streamlit run gui/app.py` with the environment's Python.
 gui = ["streamlit==1.45.1"]
 cu126 = ["torch==2.7.1"]
 cu128 = ["torch==2.7.1"]

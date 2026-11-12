@@ -3,7 +3,8 @@
 The v1 notebook API (``bayesian_optimization``, ``random_combination_generator``, ...)
 is importable from here and from the ``utils.py`` shim. The pluggable parts live in
 ``metis.surrogates``, ``metis.acquisition``, ``metis.space``, ``metis.initialization``
-and ``metis.schedules``.
+and ``metis.schedules``. ``metis.campaign`` runs a whole campaign in a few lines and is
+the engine of the app (docs/APP.md).
 """
 from .compat import *  # noqa: F401,F403
 from .compat import (allowed_output, batch_ucb, bayesian_optimization, check_repetitive, concentration_to_volume,
@@ -13,4 +14,4 @@ from .design import feature_columns
 from .optimize import suggest, suggest_combinations
 from .space import DesignSpace, Factor
 
-__version__ = '0.2.0'
+__version__ = '0.3.0'
