@@ -53,6 +53,7 @@ def variables(data=None):
 
 
 def liquid_handling():
+    """The tutorial's liquid handling: 10 uL samples, 4 nL droplets."""
     return LiquidHandling(sample_volume_ul=SAMPLE_VOLUME_UL)
 
 

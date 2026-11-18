@@ -3,8 +3,10 @@
 A dispenser adds whole droplets. With a stock of concentration ``S`` (in the variable's
 own unit), droplets of ``d`` nL and a sample of ``V`` µL, one droplet adds
 ``S * d / (1000 * V)`` to the sample, so only multiples of that step can be pipetted. A
-recipe fits when its droplets together are at most the sample volume; the rest is topped
-up with the diluent.
+recipe fits when its droplets together are at most the pipettable volume ``P``; the rest
+of ``P`` is topped up with the diluent. ``P`` is the whole sample unless part of every
+sample is taken by liquids the dispenser does not add: with 1.75 µL of a 10 µL sample
+taken, ``P`` = 8.25 µL. Concentrations are always per the whole sample ``V``.
 """
 import math
 from dataclasses import dataclass
@@ -22,12 +24,14 @@ ROUNDING_NOTICE = 0.001     # a discrete step moved by more than 0.1% draws a wa
 
 @dataclass(frozen=True)
 class Issue:
+    """A design problem: ``level`` "error" (blocks a round) or "warning", a message, and the variable."""
     level: str              # 'error' (blocks a round) or 'warning'
     message: str
     variable: str = None
 
     @property
     def blocking(self):
+        """True for errors."""
         return self.level == 'error'
 
 
@@ -37,9 +41,17 @@ def _fmt(value):
 
 @dataclass(frozen=True)
 class LiquidHandling:
+    """A dispenser setting: sample volume (uL), droplet size (nL, default 4), diluent name and
+    the pipettable volume (uL; None: the whole sample).
+
+            Validated on construction (positive numbers, a pipettable volume no larger than
+            the sample, a droplet smaller than the pipettable volume). A pipettable volume
+            equal to the sample is stored as None.
+    """
     sample_volume_ul: float
     droplet_nl: float = DEFAULT_DROPLET_NL
     diluent: str = 'Water'
+    pipettable_volume_ul: float = None
 
     def __post_init__(self):
         for name, label in (('sample_volume_ul', 'The sample volume'), ('droplet_nl', 'The droplet size')):
@@ -52,16 +64,51 @@ class LiquidHandling:
             object.__setattr__(self, name, value)
         if self.droplet_nl > self.sample_volume_ul * 1000.0:
             raise VariableError('One droplet is larger than the sample.')
+        if self.pipettable_volume_ul is not None:
+            try:
+                value = float(self.pipettable_volume_ul)
+            except (TypeError, ValueError):
+                raise VariableError('The pipettable volume must be a number.') from None
+            if not (math.isfinite(value) and value > 0):
+                raise VariableError('The pipettable volume must be above 0.')
+            if value > self.sample_volume_ul * (1 + TOLERANCE):
+                raise VariableError('The pipettable volume ({} µL) cannot be more than the sample volume ({} µL).'
+                                    .format(_fmt(value), _fmt(self.sample_volume_ul)))
+            object.__setattr__(self, 'pipettable_volume_ul',
+                               None if value >= self.sample_volume_ul * (1 - TOLERANCE) else value)
+            if self.droplet_nl > self.pipettable_ul * 1000.0:
+                raise VariableError('One droplet is larger than the pipettable volume.')
         object.__setattr__(self, 'diluent', ' '.join(str(self.diluent or '').split()) or 'Water')
+
+    # ------------------------------------------------------------------ volumes
+    @property
+    def pipettable_ul(self):
+        """Volume the dispenser fills in each sample (µL): the pipettable volume, or the whole sample."""
+        return self.sample_volume_ul if self.pipettable_volume_ul is None else self.pipettable_volume_ul
+
+    @property
+    def reserved_ul(self):
+        """Volume of each sample the dispenser does not fill (µL; 0 when it fills the whole sample)."""
+        return self.sample_volume_ul - self.pipettable_ul
+
+    @property
+    def limit(self):
+        """What a recipe must fit in, for messages: "the 10 µL sample" or "the 8.25 µL that can be
+        pipetted into each 10 µL sample"."""
+        if self.pipettable_volume_ul is None:
+            return 'the {} µL sample'.format(_fmt(self.sample_volume_ul))
+        return 'the {} µL that can be pipetted into each {} µL sample'.format(
+            _fmt(self.pipettable_ul), _fmt(self.sample_volume_ul))
 
     # ------------------------------------------------------------------ droplets
     @property
     def budget(self):
-        """Whole droplets that fit in one sample."""
-        return int(math.floor(self.sample_volume_ul * 1000.0 / self.droplet_nl + TOLERANCE))
+        """Whole droplets the dispenser can add to one sample: components and diluent together."""
+        return int(math.floor(self.pipettable_ul * 1000.0 / self.droplet_nl + TOLERANCE))
 
     def step(self, variable):
-        """Concentration one droplet of the variable's stock adds to a sample."""
+        """Concentration one droplet of the variable's stock adds to a sample (per the whole
+        sample volume, also when only part of it is pipettable)."""
         if variable.stock is None:
             raise VariableError('Enter the stock concentration of {}.'.format(variable.name))
         return variable.stock * self.droplet_nl / (self.sample_volume_ul * 1000.0)
@@ -77,6 +124,7 @@ class LiquidHandling:
         return np.round(np.asarray(droplets, dtype=float) * step, decimals)
 
     def snap(self, variable, values):
+        """Concentrations moved to the nearest whole number of droplets."""
         return self.concentration(variable, self.droplets(variable, values))
 
     def droplet_range(self, variable):
@@ -85,17 +133,25 @@ class LiquidHandling:
         return (int(math.ceil(variable.low / step - TOLERANCE)), int(math.floor(variable.high / step + TOLERANCE)))
 
     def category_droplets(self, variable):
+        """Droplets of a categorical variable's own liquid per sample."""
         return int(round(variable.volume_ul * 1000.0 / self.droplet_nl))
 
     def volume_ul(self, droplets):
+        """Droplet counts as volumes in uL."""
         return np.asarray(droplets, dtype=float) * self.droplet_nl / 1000.0
 
     # ------------------------------------------------------------------ persistence
     def to_dict(self):
-        return {'sample_volume_ul': self.sample_volume_ul, 'droplet_nl': self.droplet_nl, 'diluent': self.diluent}
+        """JSON-ready settings. The pipettable volume is only listed when it is set, so a
+        workbook without one can still be read by versions that do not know it."""
+        data = {'sample_volume_ul': self.sample_volume_ul, 'droplet_nl': self.droplet_nl, 'diluent': self.diluent}
+        if self.pipettable_volume_ul is not None:
+            data['pipettable_volume_ul'] = self.pipettable_volume_ul
+        return data
 
     @classmethod
     def from_dict(cls, data):
+        """Settings from ``to_dict`` output (None or empty: no liquid handling)."""
         return cls(**data) if data else None
 
     # ------------------------------------------------------------------ checks
@@ -177,17 +233,19 @@ class LiquidHandling:
         least = sum(lo for lo, _ in extremes.values())
         most = sum(hi for _, hi in extremes.values())
         if least > self.budget:
+            # A larger sample does not help: the volumes a concentration needs grow with the sample.
             issues.append(Issue('error', 'Even at their lowest values the components need {} µL together, more than '
-                                'the {} µL sample. Use more concentrated stocks, lower the minimums or enlarge the '
-                                'sample.'.format(_fmt(self.volume_ul(least)), _fmt(self.sample_volume_ul))))
+                                '{}. Use more concentrated stocks{} lower the minimums.'.format(
+                                    _fmt(self.volume_ul(least)), self.limit,
+                                    ' or' if self.pipettable_volume_ul is None else ', make more of each sample '
+                                    'pipettable or')))
         elif most > self.budget:
             top = sorted(extremes.items(), key=lambda item: -item[1][1])[:5]
             listing = ', '.join('{} ({} µL)'.format(name, _fmt(self.volume_ul(hi))) for name, (_, hi) in top)
-            issues.append(Issue('warning', 'At their maximum values the components need {} µL together, more than the '
-                                '{} µL sample, so the highest values cannot all be combined (recipes over the sample '
-                                'volume are never proposed). To make room, lower the maximum or raise the stock '
-                                'concentration of the largest volumes: {}.'.format(
-                                    _fmt(self.volume_ul(most)), _fmt(self.sample_volume_ul), listing)))
+            issues.append(Issue('warning', 'At their maximum values the components need {} µL together, more than '
+                                '{}, so the highest values cannot all be combined (recipes that do not fit are never '
+                                'proposed). To make room, lower the maximum or raise the stock concentration of the '
+                                'largest volumes: {}.'.format(_fmt(self.volume_ul(most)), self.limit, listing)))
         return issues
 
     def summary(self, variables):

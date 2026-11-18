@@ -20,6 +20,7 @@ class Design:
 
     @property
     def ready(self):
+        """True when there is at least one variable and no problem."""
         return bool(self.variables) and not self.problems
 
 
@@ -157,7 +158,7 @@ def read(known_columns=None):
     if ss.f_lh:
         try:
             design.liquid = LiquidHandling(sample_volume_ul=ss.f_volume, droplet_nl=ss.f_droplet,
-                                           diluent=ss.f_diluent)
+                                           diluent=ss.f_diluent, pipettable_volume_ul=ss.f_pipettable)
         except VariableError as error:
             design.problems.append(str(error))
     for position, r in enumerate(ss.rows, start=1):

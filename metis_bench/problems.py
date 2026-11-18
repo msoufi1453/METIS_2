@@ -13,6 +13,7 @@ from .synthetic import FunctionSpec, build_function
 
 @dataclass
 class Problem:
+    """A benchmark problem: id, oracle (true yield), noise model, optional imported data, and labels."""
     id: str
     oracle: object
     noise: object
@@ -32,6 +33,7 @@ def _oracle_from_key(key):
 
 
 def oracle_for(cfg):
+    """The (cached) oracle for a problem config: measured data, a real-data gold model or a suite function."""
     if 'measured' in cfg:
         key = {'measured': cfg['measured']}
     elif 'real' in cfg:
@@ -84,6 +86,7 @@ def imported_design(space, n, rng, kind='ofat', n_bases=2):
 
 
 def problem_seed(problem_id):
+    """A fixed integer per problem id (CRC32), mixed into every campaign seed."""
     return zlib.crc32(problem_id.encode())
 
 

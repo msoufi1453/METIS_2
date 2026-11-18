@@ -48,6 +48,7 @@ from .problems import get_problem, imported_design, problem_seed, typical_spacin
 
 @dataclass
 class Settings:
+    """Campaign size: batch per round, rounds, candidates per round, held-out test points, PCA snapshots."""
     batch_size: int = 32
     n_rounds: int = 10
     pool_size: int = 10000
@@ -89,6 +90,15 @@ def uses_gpu(task):
 
 
 def run_campaign(problem_cfg, arm_cfg, seed, settings=None):
+    """Run one arm on one problem with one seed and return the result dict (written as JSON).
+
+            Steps: optional imported data (round 0), the initial design (round 1), then each
+            round fits a fresh surrogate to all replicate means, sets the schedule's UCB weights,
+            draws the pool, optionally hill-climbs, selects the batch and measures it under the
+            problem's noise model. Every guided round logs held-out and in-batch accuracy and
+            calibration, batch spread and timing. Keys: problem, arm, seed, settings,
+            trajectory, rounds, endpoints, evaluated, environment, elapsed_s.
+    """
     settings = settings or Settings()
     t_start = time.time()
     problem = get_problem(problem_cfg)
@@ -111,6 +121,7 @@ def run_campaign(problem_cfg, arm_cfg, seed, settings=None):
     log = {'idx': [], 'round': [], 'true': [], 'mean': [], 'std': []}
 
     def measure(idx, r):
+        """Measure recipes ``idx`` in round ``r`` (true value, noisy mean and std) and log them."""
         f = oracle(idx)
         mean, std, _ = noise.measure(f, oracle.f_max, noise_rngs[r])
         log['idx'] += idx.tolist()
@@ -241,6 +252,7 @@ def _slug(text):
 
 
 def result_path(out_dir, experiment, problem_id, arm_name, seed):
+    """``<out>/<experiment>/<problem>/<arm>/seed_XXX.json`` (names made file-system safe)."""
     return pathlib.Path(out_dir) / _slug(experiment) / _slug(problem_id) / _slug(arm_name) / 'seed_{:03d}.json'.format(seed)
 
 
@@ -368,6 +380,7 @@ def run_tasks(tasks, jobs=1, progress=print, gpu_jobs=1):
     failures = []
 
     def finish(i, job, outcome):
+        """Record one finished job: copy shared results to identical tasks, report progress or failure."""
         path, error, elapsed = outcome
         if error:
             failures.append((path, error))

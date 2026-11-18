@@ -162,6 +162,7 @@ class _Scored:
     fantasy: bool
 
     def pick(self, pool, prediction, k):
+        """Batch of ``k`` rows of ``pool`` with the round's acquisition and batch rule (no refit)."""
         space = self.fitted.space
         chosen = suggest(self.fitted.model, self.fitted.X, self.fitted.y, space.features(pool), k,
                          acquisition=self.acquisition, selector=make_selector(self.radius, self.fantasy),
@@ -237,6 +238,18 @@ class Proposal:
 
 
 class Campaign:
+    """A campaign: variables, target, optional liquid handling, model, and one data table.
+
+            ``data`` has one row per measurement and the columns ``columns`` lists: bookkeeping
+            (Sample ID, Round, Data point, Replicate, Plate, Well), one per variable, ``extra``
+            (removed variables, notes), the prediction columns and the result (``target``).
+            ``history`` holds one JSON-ready record per generated round (settings, versions,
+            PCA map). Typical cycle: ``propose`` -> ``add_round`` -> ``save`` -> fill in results
+            -> ``load`` -> ``propose`` ... ``add_data`` adds measurements that already exist.
+
+            ``model``: a key of ``MODELS`` ('tabpfn35'); ``model_options`` override its defaults.
+            ``seed`` makes every round reproducible (each round draws from ``[seed, round]``).
+    """
     def __init__(self, variables, target='Result', liquid_handling=None, model=DEFAULT_MODEL, seed=0,
                  name='campaign', model_options=None):
         self.name = ' '.join(str(name or '').split()) or 'campaign'
@@ -254,10 +267,12 @@ class Campaign:
     # ------------------------------------------------------------------ the data table
     @property
     def names(self):
+        """Variable names, in order."""
         return [v.name for v in self.variables]
 
     @property
     def columns(self):
+        """Every column of ``data``, in order."""
         return list(col.BOOKKEEPING) + self.names + self.extra + col.prediction_columns(self.target) + [self.target]
 
     def _table(self, values, n=0):
@@ -330,18 +345,22 @@ class Campaign:
     # ------------------------------------------------------------------ views of the data
     @property
     def rounds(self):
+        """Round numbers present in the data (0 = day 0 data)."""
         return sorted(int(r) for r in self.data[col.ROUND].unique())
 
     @property
     def next_round(self):
+        """Number the next generated round gets (day 0 data does not count)."""
         return max([r for r in self.rounds if r > 0], default=0) + 1
 
     @property
     def measured(self):
+        """Rows with a result."""
         return self.data[self.data[self.target].notna()]
 
     @property
     def pending(self):
+        """Rows still waiting for a result."""
         return self.data[self.data[self.target].isna()]
 
     def samples(self):
@@ -363,6 +382,7 @@ class Campaign:
         return None if samples.empty else samples.loc[samples[self.target].idxmax()]
 
     def progress(self):
+        """Per round: recipes measured, best, median and best so far (``analysis.progress``)."""
         samples = self.samples().dropna(subset=[self.target])
         return analysis.progress(samples, col.ROUND, self.target)
 
@@ -377,6 +397,7 @@ class Campaign:
         return digest.hexdigest()[:16]
 
     def copy(self):
+        """An independent copy (data, history and variable list copied; variables are immutable)."""
         other = copy.copy(self)
         other.data = self.data.copy()
         other.history = copy.deepcopy(self.history)
@@ -437,8 +458,7 @@ class Campaign:
         space = self.space()
         over = np.flatnonzero(~space.feasible(space.encode(recipes)))
         if len(over):
-            raise CampaignError('{} needs more than the {:g} µL sample volume.'.format(
-                where[int(over[0])], self.liquid.sample_volume_ul))
+            raise CampaignError('{} needs more than {}.'.format(where[int(over[0])], self.liquid.limit))
         round_number = self.next_round
         rows = np.repeat(np.arange(n), replicates)
         values = {name: recipes[name].to_numpy()[rows] for name in self.names}
@@ -523,9 +543,10 @@ class Campaign:
         if not any(i.blocking for i in issues):
             share = self.space().feasible_fraction()
             if share < MIN_FEASIBLE:
-                issues.append(Issue('error', 'Fewer than 1 in 100 random recipes fit in the {:g} µL sample, so a '
-                                    'round cannot be drawn. Lower the maximums, use more concentrated stocks or '
-                                    'enlarge the sample.'.format(self.liquid.sample_volume_ul)))
+                issues.append(Issue('error', 'Fewer than 1 in 100 random recipes fit in {}, so a round cannot be '
+                                    'drawn. Lower the maximums{} use more concentrated stocks.'.format(
+                                        self.liquid.limit, ' or' if self.liquid.pipettable_volume_ul is None else
+                                        ', make more of each sample pipettable or')))
         return issues
 
     def snap(self, recipes):
@@ -752,6 +773,7 @@ class Campaign:
             rows.append(('Used', 'no'))
         else:
             rows += [('Sample volume (µL)', self.liquid.sample_volume_ul),
+                     ('Pipettable volume (µL)', self.liquid.pipettable_ul),
                      ('Droplet size (nL)', self.liquid.droplet_nl), ('Diluent', self.liquid.diluent)]
         for record in self.history:
             rows.append(('Round {}'.format(record['round']), None))
@@ -785,11 +807,13 @@ class Campaign:
                               self._metadata())
 
     def save(self, path):
+        """Write the workbook to ``path`` (.xlsx)."""
         with open(path, 'wb') as handle:
             handle.write(self.to_workbook())
 
     @classmethod
     def load(cls, path, require_results=True):
+        """Read a campaign from a workbook file (see ``from_workbook``)."""
         with open(path, 'rb') as handle:
             return cls.from_workbook(handle.read(), require_results)
 

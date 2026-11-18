@@ -20,6 +20,7 @@ from .surrogates import Prediction
 
 @dataclass
 class Climb:
+    """What ``climb`` did: start and end recipes, accepted moves, scores, and the new end points."""
     starts: np.ndarray          # start recipes (grid indices), best-scoring first
     ends: np.ndarray            # where each climb stopped
     steps: np.ndarray           # accepted moves per climb

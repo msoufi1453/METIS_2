@@ -12,6 +12,10 @@ import numpy as np
 
 
 class Schedule:
+    """Base class: ``schedule(round_index, n_rounds, history)`` returns the exploration weight.
+
+            Override ``weights`` instead to set both UCB weights (see ``ExploitRampSchedule``).
+    """
     name = 'schedule'
 
     def __call__(self, round_index, n_rounds, history=None):
@@ -23,6 +27,7 @@ class Schedule:
         return None, self(round_index, n_rounds, history)
 
     def describe(self):
+        """Name and settings, for result files."""
         return {'name': self.name, **{k: v for k, v in vars(self).items() if not k.startswith('_')}}
 
 
@@ -37,6 +42,7 @@ class LegacySchedule(Schedule):
 
 
 class ConstantSchedule(Schedule):
+    """The same exploration weight ``beta`` every round."""
     name = 'constant'
 
     def __init__(self, beta=1.0):
@@ -139,6 +145,7 @@ class ExploitRampSchedule(Schedule):
         self.slope = slope
 
     def weights(self, round_index, n_rounds, history=None):
+        """``(exploitation, exploration)`` for the round, summing to 1."""
         exploitation = float(np.clip(self.slope * (round_index - 1) / max(n_rounds - 1, 1), 0.0, 1.0))
         return exploitation, 1.0 - exploitation
 
@@ -152,5 +159,6 @@ REGISTRY = {'legacy': LegacySchedule, 'constant': ConstantSchedule, 'linear': Li
 
 
 def make(cfg):
+    """Build a schedule from ``{'type': <REGISTRY key>, **params}`` (None: the notebooks' legacy table)."""
     cfg = dict(cfg or {'type': 'legacy'})
     return REGISTRY[cfg.pop('type')](**cfg)

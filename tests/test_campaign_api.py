@@ -135,6 +135,130 @@ def test_liquid_checks_compare_volumes_with_the_sample():
     assert table['Volume at maximum (µL)'].tolist() == pytest.approx([0.2, 0.4, 0.4])
 
 
+# --------------------------------------------------------------------------- the pipettable volume
+def pipettable(volume=8.25):
+    """10 µL samples of which the dispenser fills ``volume`` µL (4 nL droplets)."""
+    return LiquidHandling(sample_volume_ul=10, droplet_nl=4, pipettable_volume_ul=volume)
+
+
+def test_pipettable_volume_limits_the_droplets_not_the_concentrations():
+    whole, part = LiquidHandling(sample_volume_ul=10, droplet_nl=4), pipettable()
+    mg = Continuous('Mg', 0, 10, unit='mM', stock=500)
+    assert part.step(mg) == whole.step(mg) == pytest.approx(0.2)        # per the whole 10 uL sample
+    assert part.snap(mg, [3.33]).tolist() == whole.snap(mg, [3.33]).tolist() == [3.4]
+    assert part.droplet_range(mg) == whole.droplet_range(mg) == (0, 50)
+    assert (whole.budget, part.budget) == (2500, 2062)                  # 8.25 uL / 4 nL = 2062.5 droplets
+    assert (part.pipettable_ul, part.reserved_ul, whole.pipettable_ul, whole.reserved_ul) == (8.25, 1.75, 10.0, 0.0)
+    assert whole.pipettable_volume_ul is None and whole.limit == 'the 10 µL sample'
+    assert part.limit == 'the 8.25 µL that can be pipetted into each 10 µL sample'
+    assert LiquidHandling(10, pipettable_volume_ul=10) == whole               # the whole sample: stored as None
+    assert LiquidHandling(10, 4, 'Water', '8.25') == part
+    assert part.to_dict() == {'sample_volume_ul': 10.0, 'droplet_nl': 4.0, 'diluent': 'Water',
+                              'pipettable_volume_ul': 8.25}
+    assert 'pipettable_volume_ul' not in whole.to_dict()                    # older versions can still read it
+    assert LiquidHandling.from_dict(part.to_dict()) == part and LiquidHandling.from_dict(whole.to_dict()) == whole
+    for bad, message in [(0, 'must be above 0'), (-1, 'must be above 0'), (float('nan'), 'must be above 0'),
+                         ('x', 'must be a number'), (10.5, r'The pipettable volume \(10\.5 µL\) cannot be more than '
+                                                         r'the sample volume \(10 µL\)')]:
+        with pytest.raises(VariableError, match=message):
+            pipettable(bad)
+    with pytest.raises(VariableError, match='larger than the pipettable volume'):
+        pipettable(0.003)                                                   # 3 nL, less than one droplet
+
+
+def test_liquid_checks_compare_volumes_with_the_pipettable_volume():
+    whole, part = LiquidHandling(sample_volume_ul=10, droplet_nl=4), pipettable()
+    roomy = [Continuous('a', 0, 50, unit='mM', stock=100), Continuous('b', 0, 40, unit='mM', stock=100)]  # 5 + 4 uL
+    assert whole.check(roomy) == []
+    warnings = _messages(part, roomy, 'warning')
+    assert len(warnings) == 1 and not _messages(part, roomy, 'error')
+    assert '9 µL together, more than the 8.25 µL that can be pipetted into each 10 µL sample' in warnings[0]
+    assert warnings[0].index('a (5 µL)') < warnings[0].index('b (4 µL)')
+    fixed = [Discrete('a', [50], stock=100), Discrete('b', [40], stock=100)]                         # always 9 uL
+    assert whole.check(fixed) == []
+    errors = _messages(part, fixed, 'error')
+    assert len(errors) == 1 and errors[0] == (
+        'Even at their lowest values the components need 9 µL together, more than the 8.25 µL that can be '
+        'pipetted into each 10 µL sample. Use more concentrated stocks, make more of each sample pipettable or '
+        'lower the minimums.')
+    too_much = [Discrete('a', [60], stock=100), Discrete('b', [50], stock=100)]
+    assert _messages(whole, too_much, 'error') == [
+        'Even at their lowest values the components need 11 µL together, more than the 10 µL sample. Use more '
+        'concentrated stocks or lower the minimums.']
+    assert part.summary(roomy).equals(whole.summary(roomy))           # volumes per variable do not change
+
+
+def test_recipes_fit_the_pipettable_volume():
+    variables = [Continuous(name, 0, 60, stock=100) for name in 'abc']                         # up to 6 uL each
+    whole, part = RecipeSpace(variables, LiquidHandling(sample_volume_ul=10)), RecipeSpace(variables, pipettable())
+    assert part.budget == 2062 and part.feasible_fraction() < whole.feasible_fraction()
+    rng = np.random.default_rng(0)
+    for R in (part.sample(200, rng), part.lhs(15, rng)):
+        assert part.feasible(R).all() and (part.droplets(R) <= 2062).all()
+    assert not part.feasible(whole.sample(400, rng)).all()             # some recipes fit 10 uL but not 8.25 uL
+    row = part.encode(pd.DataFrame({'a': [40.0], 'b': [40.0], 'c': [2.4]}))[0]     # 4 + 4 + 0.24 = 8.24 uL
+    assert part.droplets(row).tolist() == [2060] and part.feasible(row).all()
+    near = part.neighbors(row)
+    assert len(near) and part.feasible(near).all() and (part.droplets(near) < 2060).all()   # only moves down fit
+    assert len(whole.neighbors(row)) > len(near)
+
+
+def test_campaign_and_pipetting_with_a_pipettable_volume():
+    campaign = Campaign(design() + [Categorical('Template', ['A', 'B'], volume_ul=0.5)], target='sfGFP', model=FAST,
+                        liquid_handling=pipettable())
+    assert campaign.check() == []
+    campaign.add_round(campaign.propose(6))
+    assert (campaign.volume_ul(campaign.data[campaign.names]) <= 8.25).all()
+    plan = campaign.pipetting()
+    table = plan.table(1).fillna(0)
+    assert table.index[-1] == 'Water' and np.allclose(table.sum(), 8.248)       # 2062 whole droplets of 4 nL
+    rows = campaign.data.set_index(col.WELL)
+    assert np.allclose(table.loc['Mg (500 mM stock)'], rows['Mg'] * 10 / 500)  # volumes for the whole 10 uL
+    assert np.allclose(table.loc['K (4000 mM stock)'], rows['K'] * 10 / 4000)
+    assert 'Each sample is 10 µL: 8.25 µL from this table and 1.75 µL that the dispenser does not add.' in plan.notes
+    assert 'Whole 4 nL droplets cannot make exactly 8.25 µL: each well gets 8.248 µL from this table.' in plan.notes
+    idot = plan.idot('MoS', 'pipettable')
+    assert idot.source['Dispensed (µL)'].sum() == pytest.approx(6 * 8.248) and not idot.warnings
+    exact = Campaign(design(), model=FAST, liquid_handling=pipettable(8.24))               # 2060 whole droplets
+    exact.add_round(exact.propose(3))
+    notes = exact.pipetting().notes
+    assert np.allclose(exact.pipetting().table(1).fillna(0).sum(), 8.24)
+    assert not any('cannot make exactly' in note for note in notes) and any('1.76 µL' in note for note in notes)
+    whole = measured_campaign(4)                                                 # no pipettable volume: as before
+    assert not any('dispenser does not add' in note or 'cannot make exactly' in note
+                   for note in whole.pipetting().notes)
+
+
+def test_rounds_that_do_not_fit_the_pipettable_volume():
+    campaign = Campaign([Continuous('a', 0, 60, stock=100), Continuous('b', 0, 60, stock=100)], model=FAST,
+                        liquid_handling=pipettable())
+    recipes = pd.DataFrame({'a': [40.0, 50.0], 'b': [40.0, 40.0]})                        # 8 uL and 9 uL
+    assert campaign.volume_ul(recipes).tolist() == pytest.approx([8.0, 9.0])
+    with pytest.raises(CampaignError, match='Data point 2 needs more than the 8.25 µL that can be pipetted into '
+                                            'each 10 µL sample'):
+        campaign.add_round(recipes)
+    assert campaign.add_round(recipes.iloc[:1]) == 1
+    rare = Campaign([Continuous(name, 0, 100, stock=100) for name in 'abcdefgh'], model=FAST,
+                    liquid_handling=pipettable())
+    message = next(issue.message for issue in rare.check() if 'Fewer than 1 in 100' in issue.message)
+    assert message == ('Fewer than 1 in 100 random recipes fit in the 8.25 µL that can be pipetted into each 10 µL '
+                       'sample, so a round cannot be drawn. Lower the maximums, make more of each sample pipettable '
+                       'or use more concentrated stocks.')
+
+
+def test_workbook_keeps_the_pipettable_volume():
+    campaign = Campaign(design(), target='sfGFP', model=FAST, name='test', liquid_handling=pipettable())
+    campaign.add_round(campaign.propose(4))
+    data = campaign.to_workbook()
+    loaded = Campaign.from_workbook(data, require_results=False)
+    assert loaded.liquid == campaign.liquid and loaded.liquid.pipettable_ul == 8.25
+    assert loaded.history[-1]['liquid_handling']['pipettable_volume_ul'] == 8.25
+    meta = {row[0]: row[1] for row in load_workbook(io.BytesIO(data))['Metadata'].iter_rows(values_only=True)}
+    assert (meta['Sample volume (µL)'], meta['Pipettable volume (µL)']) == (10, 8.25)
+    old = Campaign.from_workbook(measured_campaign(4).to_workbook())             # no pipettable volume
+    assert old.liquid.pipettable_volume_ul is None and old.liquid.budget == 2500
+
+
 # --------------------------------------------------------------------------- the recipe space
 def _space(liquid=True):
     return RecipeSpace(design(), LiquidHandling(sample_volume_ul=10) if liquid else None)

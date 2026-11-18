@@ -77,10 +77,17 @@ def _shapley(values, names):
 
 
 def analyze(runs, names, metric=metrics.PRIMARY_ENDPOINT, n_boot=2000, seed=0):
+    """Effects of each part and their interactions, with problem-level bootstrap intervals.
+
+            Paired differences to the incumbent are averaged per subset of switched-on parts and
+            fitted with a main-effects-plus-interactions model; Shapley shares split the full
+            combination's improvement when all ``2 ** len(names)`` subsets were run.
+    """
     effects = paired_effects(runs, names, metric)
     problems = sorted(effects.problem_id.unique())
 
     def estimate(problem_ids):
+        """Coefficients and Shapley shares from the given problems (one bootstrap draw)."""
         sub = pd.concat([effects[effects.problem_id == p] for p in problem_ids])
         mean_by_subset = sub.groupby('subset')['diff'].mean()
         X, labels = _design(list(mean_by_subset.index), names)

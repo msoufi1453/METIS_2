@@ -1,10 +1,15 @@
 """TabPFN surrogate.
 
-``version='v2'`` (default, the main benchmark) needs ``uv sync --extra tabpfn``
-(package 2.0.x). ``version='v3.5'`` needs ``uv sync --extra tabpfn35`` (package 9.x,
-non-commercial weights, one-time licence acceptance with a Prior Labs account). The two
-extras are mutually exclusive, and ``fit`` refuses to run on the wrong one, so a run
-never silently uses a different model than its configuration says.
+``version='v3.5'`` is what every benchmark TabPFN arm uses (amendment 5); it needs
+``uv sync --extra tabpfn35`` (package 9.x, non-commercial weights, licence accepted once
+with a Prior Labs account or through the ``TABPFN_TOKEN`` environment variable).
+``version='v2'`` (still the class default, for old configurations) needs ``uv sync
+--extra tabpfn`` (package 2.0.x). The two extras are mutually exclusive, and ``fit``
+refuses to run on the wrong one, so a run never silently uses a different model than
+its configuration says.
+
+Speed: about 0.5-0.8 s per replay round on an RTX 5090 laptop GPU; about 38 s to score
+1,000 candidates with 8 estimators on an i7-8665U laptop CPU (4 s with 1 estimator).
 """
 import numpy as np
 
@@ -12,6 +17,7 @@ from .base import Prediction, Surrogate, as_1d_float, as_2d_float
 
 
 def tabpfn_available():
+    """True if the ``tabpfn`` package imports."""
     try:
         import tabpfn  # noqa: F401
     except ImportError:
@@ -20,7 +26,7 @@ def tabpfn_available():
 
 
 class TabPFNSurrogate(Surrogate):
-    """TabPFN v2 regressor; ``std`` comes from its predictive bar distribution.
+    """TabPFN regressor (v2 or v3.5); ``std`` comes from its predictive bar distribution.
 
     TabPFN infers in context, so ``fit`` is cheap and ``predict`` does the work. Inputs
     are chunked to bound memory. TabPFN cannot take per-sample noise variances, so
@@ -32,8 +38,8 @@ class TabPFNSurrogate(Surrogate):
     therefore over-cover, while the GP reports latent std. Keep this in mind when
     comparing calibration.
 
-    The weights (``Prior-Labs/TabPFN-v2-reg``) download on first use; pass ``model_path``
-    to use a local copy on an offline cluster.
+    The weights download on first use; pass ``model_path`` to use a local copy on an
+    offline cluster. ``device`` is passed to TabPFN ('cpu', 'cuda' or 'auto').
     """
 
     name = 'tabpfn'
@@ -48,6 +54,11 @@ class TabPFNSurrogate(Surrogate):
         self.random_state = random_state
 
     def fit(self, X, y, noise_var=None):
+        """Build the regressor for ``version`` and load ``X``, ``y`` as context.
+
+                Raises if the installed ``tabpfn`` package does not match ``version`` (2.0.x for 'v2',
+                9.x for 'v3.5'). A generator ``random_state`` draws a fresh seed per fit.
+        """
         import tabpfn
         from tabpfn import TabPFNRegressor
 
@@ -78,6 +89,7 @@ class TabPFNSurrogate(Surrogate):
         return self
 
     def predict(self, X):
+        """Mean and std of the predictive distribution, in chunks of ``chunk_size`` rows."""
         return self._predict(X)[0]
 
     def predict_interval(self, X, level=0.8):
@@ -116,6 +128,7 @@ class TabPFNSurrogate(Surrogate):
                                version=self.version)
 
     def describe(self):
+        """Name, version, estimators and, once fitted, the device used (e.g. cuda:0)."""
         out = {'name': self.name, 'version': self.version, 'n_estimators': self.n_estimators}
         model = getattr(self, 'model_', None)
         if model is not None:   # the device the model actually ran on, e.g. cuda:0 or cpu

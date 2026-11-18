@@ -37,6 +37,7 @@ DIALS = {'active': ('all', 'subset'), 'zero_fraction': (0.0, 0.2, 0.5), 'n_categ
 # --------------------------------------------------------------------------- real data
 def _model_fn(model, space, transform=None):
     def f(idx):
+        """Model prediction for grid indices ``idx``."""
         X = space.features(idx)
         return model.predict(transform(X) if transform else X).astype(float)
     return f
@@ -186,6 +187,7 @@ TRANSFORMS = {'skew': _signed_log1p}
 
 
 def descriptor_matrix(frame, columns):
+    """The descriptor columns as floats, with skewed ones transformed (``TRANSFORMS``)."""
     out = frame[list(columns)].astype(float).copy()
     for col, fn in TRANSFORMS.items():
         if col in out:
@@ -194,6 +196,7 @@ def descriptor_matrix(frame, columns):
 
 
 def standardize(frame, columns, reference=None):
+    """Descriptors z-scored against ``reference`` (default: themselves); returns (z, mean, sd)."""
     values = descriptor_matrix(frame, columns)
     ref = values if reference is None else descriptor_matrix(reference, columns)
     mu, sd = ref.mean(), ref.std(ddof=0).replace(0, 1.0)
@@ -220,6 +223,7 @@ def realism_scores(synthetic, real_refs, columns):
 
 # --------------------------------------------------------------------------- suite
 def random_spec(subtype, rng, seed):
+    """A random ``FunctionSpec`` of ``subtype``: active factors, zero fraction, categoricals, contrast 2-1000."""
     return FunctionSpec(subtype=subtype,
                         active=str(rng.choice(DIALS['active'])),
                         zero_fraction=float(rng.choice(DIALS['zero_fraction'])),
@@ -261,6 +265,7 @@ def _map(tasks, jobs, progress, label):
 
 
 def screen_candidates(n_per_subtype=24, seed=0, n_base=256, jobs=1, progress=print):
+    """Describe ``n_per_subtype`` random specs per subtype at each dimension (cheap descriptors)."""
     rng = np.random.default_rng(seed)
     tasks = []
     for subtype in SUBTYPES:
@@ -313,6 +318,7 @@ def assign_split(spec_ids, subtypes):
 
 
 def finalize_suite(selected, screened, refs, out_dir, noise='realistic', n_base=1024, jobs=1, progress=print):
+    """Full descriptors, realism scores and the dev/test split for the selected specs; writes suite/."""
     out_dir = pathlib.Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     specs = {r.spec_id: FunctionSpec.from_dict(screened[screened.spec_id == r.spec_id].iloc[0].to_dict())

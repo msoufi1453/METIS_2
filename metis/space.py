@@ -20,6 +20,15 @@ from .design import allowed_output
 
 @dataclass
 class Factor:
+    """One component of the recipe: its allowed concentrations and what each costs in droplets.
+
+    ``levels`` are sorted ascending on construction (``drops`` follow the same order).
+    ``drops[i]`` is the number of droplets level ``i`` takes (None: free, no volume limit).
+    ``alternatives`` are interchangeable variants (e.g. promoters) that add a categorical
+    dimension and cost no volume. ``log_scale`` places levels on a log axis for distances,
+    plots and neighbour moves; zero then sits one typical dose step below the smallest dose.
+    """
+
     name: str
     levels: np.ndarray
     drops: np.ndarray = None
@@ -46,6 +55,7 @@ class Factor:
         self._lo, self._hi = float(scaled.min()), float(scaled.max())
 
     def scale(self, concentrations):
+        """Concentrations on the factor's own axis: unchanged, or log10 for log-scale factors."""
         c = np.asarray(concentrations, dtype=float)
         if not self.log_scale:
             return c
@@ -55,6 +65,7 @@ class Factor:
         return np.where(c >= self._pos_min, top, below)
 
     def to_unit(self, concentrations):
+        """Concentrations mapped to [0, 1] on the factor's axis (lowest level 0, highest 1)."""
         span = self._hi - self._lo
         if span <= 0:
             return np.zeros_like(np.asarray(concentrations, dtype=float))
@@ -62,6 +73,7 @@ class Factor:
 
     @property
     def level_units(self):
+        """Each level's position in [0, 1] (see ``to_unit``)."""
         return self.to_unit(self.levels)
 
 
@@ -121,10 +133,12 @@ class DesignSpace:
     # ----------------------------------------------------------------- basic facts
     @property
     def n_dims(self):
+        """Columns of an index row: one per factor plus one per factor with alternatives."""
         return len(self.dims)
 
     @property
     def n_factors(self):
+        """Number of factors (components)."""
         return len(self.factors)
 
     @property
@@ -136,12 +150,14 @@ class DesignSpace:
         return total
 
     def describe(self):
+        """Summary for result files: size (as log10), budget and droplet size."""
         return {'name': self.name, 'n_factors': self.n_factors, 'n_dims': self.n_dims,
                 'log10_size': float(np.sum(np.log10(self.cardinalities))), 'max_nl': self.max_nl,
                 'drop_nl': self.drop_nl}
 
     # ----------------------------------------------------------------- volumes
     def drops(self, idx):
+        """Total droplets per row of grid indices (alternatives and free factors count 0)."""
         idx = np.atleast_2d(idx)
         total = np.zeros(len(idx))
         for d, (f, kind) in enumerate(self.dims):
@@ -151,9 +167,11 @@ class DesignSpace:
         return total
 
     def volume_nl(self, idx):
+        """Variable volume per row in nL (droplets x ``drop_nl``)."""
         return self.drops(idx) * self.drop_nl
 
     def feasible(self, idx):
+        """Boolean per row: variable volume within ``max_nl`` (all True without a budget)."""
         idx = np.atleast_2d(idx)
         if not self.max_nl:
             return np.ones(len(idx), dtype=bool)
@@ -162,6 +180,7 @@ class DesignSpace:
 
     # ----------------------------------------------------------------- encodings
     def features(self, idx):
+        """Model inputs for index rows: concentrations plus one-hot alternatives (``columns`` order)."""
         idx = np.atleast_2d(idx)
         blocks = []
         for d, (f, kind) in enumerate(self.dims):
@@ -173,6 +192,7 @@ class DesignSpace:
         return np.hstack(blocks)
 
     def frame(self, idx):
+        """``features`` as a DataFrame with METIS's column names."""
         return pd.DataFrame(self.features(idx), columns=self.columns)
 
     def unit(self, idx):
@@ -208,6 +228,7 @@ class DesignSpace:
             col += 1 + (len(factor.alternatives) if factor.alternatives else 0)
 
         def transform(X):
+            """Copy of ``X`` with each factor's concentration column mapped to [0, 1]."""
             Z = np.array(X, dtype=float, copy=True)
             for c, factor in plan:
                 Z[:, c] = factor.to_unit(Z[:, c])
@@ -245,10 +266,11 @@ class DesignSpace:
         return idx
 
     def from_frame(self, df):
+        """``from_features`` for a DataFrame holding (at least) ``columns``."""
         return self.from_features(df[self.columns].to_numpy(dtype=float))
 
     def keys(self, idx):
-        """Hashable row keys for de-duplication."""
+        """Hashable row keys (bytes) for de-duplication; relies on at most 255 levels per dimension."""
         rows = np.ascontiguousarray(np.atleast_2d(idx).astype(np.uint8))
         return [r.tobytes() for r in rows]
 

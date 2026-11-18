@@ -30,7 +30,7 @@ def _changed_rows(old, new, names):
 
 def apply_edit(rnd, variant, proposal, edited):
     """Take over cells the user changed: round them to allowed values, undo what does not fit
-    the sample, and update the prediction. Returns True when the table changed."""
+    the pipettable volume, and update the prediction. Returns True when the table changed."""
     campaign, names = rnd['campaign'], rnd['campaign'].names
     table = rnd['tables'][variant]
     edited = edited.reset_index(drop=True)
@@ -47,11 +47,10 @@ def apply_edit(rnd, variant, proposal, edited):
     snapped.index = rows
     if campaign.liquid is not None:
         volume = campaign.volume_ul(snapped)
-        over = volume > campaign.liquid.sample_volume_ul + 1e-9
+        over = volume > campaign.liquid.pipettable_ul + 1e-9
         for position in rows[over]:
-            notes.append('Data point {} would need {:.4g} µL, more than the {:g} µL sample: the change was '
-                         'undone.'.format(position + 1, volume[list(rows).index(position)],
-                                          campaign.liquid.sample_volume_ul))
+            notes.append('Data point {} would need {:.4g} µL, more than {}: the change was undone.'.format(
+                position + 1, volume[list(rows).index(position)], campaign.liquid.limit))
         snapped = snapped.loc[rows[~over]]
     kept = snapped.index.to_numpy()
     kept = kept[_changed_rows(table.loc[kept, names].reset_index(drop=True), snapped.reset_index(drop=True), names)] \
@@ -223,7 +222,7 @@ def _pipetting_tab(rnd, proposal, staged):
         return
     st.markdown('**All volumes are in µL.** One column per well (1A = column 1, row A; wells fill column by column), '
                 'one row per liquid. "{}" tops each well up to {:g} µL.'.format(
-                    campaign.liquid.diluent, campaign.liquid.sample_volume_ul))
+                    campaign.liquid.diluent, campaign.liquid.pipettable_ul))
     plate = 1
     if len(plan.plates) > 1:
         plate = st.selectbox('Plate ({} wells on {} plates of 96)'.format(len(plan.layout), len(plan.plates)),
@@ -264,6 +263,10 @@ def _pipetting_tab(rnd, proposal, staged):
 
 
 def render():
+    """The round screen: summary line, then tabs for the recipes (editable), pipetting (with
+            liquid handling), the PCA map and, once two results exist, progress, importance and
+            interactions.
+    """
     ss = st.session_state
     rnd = ss.round
     campaign, plain = rnd['campaign'], rnd['proposal']

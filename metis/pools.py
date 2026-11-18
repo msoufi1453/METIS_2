@@ -15,19 +15,28 @@ import numpy as np
 
 
 class CandidatePool:
+    """Base class: ``generate(space, n, rng, observed, y_obs)`` returns ``n`` grid-index rows.
+
+            ``observed`` / ``y_obs`` are the measured recipes (grid indices) and their yields;
+            pools exclude measured recipes so nothing is proposed twice.
+    """
     name = 'pool'
 
     def generate(self, space, n, rng, observed=None, y_obs=None):
+        """Return up to ``n`` feasible, unmeasured recipes as grid-index rows."""
         raise NotImplementedError
 
     def describe(self):
+        """Name and settings, for result files."""
         return {'name': self.name, **{k: v for k, v in vars(self).items() if not k.startswith('_')}}
 
 
 class RandomPool(CandidatePool):
+    """METIS v1: uniform level per factor, rejecting recipes over the volume budget or already measured."""
     name = 'random'
 
     def generate(self, space, n, rng, observed=None, y_obs=None):
+        """``space.sample`` excluding the measured recipes."""
         exclude = space.keys(observed) if observed is not None and len(observed) else None
         return space.sample(n, rng, exclude=exclude)
 
@@ -56,6 +65,11 @@ class LocalPool(CandidatePool):
         return rows
 
     def generate(self, space, n, rng, observed=None, y_obs=None):
+        """Mutations of the best measured recipes, topped up with random recipes.
+
+                Falls back to a random pool when nothing is measured yet. Mutations that break the
+                volume budget, repeat a measured recipe or repeat each other are dropped (20 tries).
+        """
         if observed is None or not len(observed):
             return RandomPool().generate(space, n, rng)
         seen = set(space.keys(observed))
@@ -82,5 +96,6 @@ REGISTRY = {'random': RandomPool, 'local': LocalPool}
 
 
 def make(cfg):
+    """Build a pool from ``{'type': 'random' | 'local', **params}`` (None: random)."""
     cfg = dict(cfg or {'type': 'random'})
     return REGISTRY[cfg.pop('type')](**cfg)

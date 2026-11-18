@@ -53,6 +53,7 @@ def _set(obj, **values):
 
 @dataclass(frozen=True)
 class Continuous:
+    """Any value between ``low`` and ``high`` (whole droplets only, when pipetted)."""
     name: str
     low: float
     high: float
@@ -71,19 +72,23 @@ class Continuous:
 
     @property
     def label(self):
+        """``"name (unit)"``, or the name when there is no unit: the column header in files."""
         return '{} ({})'.format(self.name, self.unit) if self.unit else self.name
 
     @property
     def varies(self):
+        """Always True."""
         return True
 
     def to_dict(self):
+        """JSON-ready description (``from_dict`` reverses it)."""
         return {'type': self.kind, 'name': self.name, 'low': self.low, 'high': self.high, 'unit': self.unit,
                 'stock': self.stock}
 
 
 @dataclass(frozen=True)
 class Discrete:
+    """One of 1 to 100 numeric ``levels`` (sorted on construction). One level: a fixed component."""
     name: str
     levels: tuple
     unit: str = ''
@@ -107,21 +112,26 @@ class Discrete:
 
     @property
     def label(self):
+        """``"name (unit)"``, or the name when there is no unit."""
         return '{} ({})'.format(self.name, self.unit) if self.unit else self.name
 
     @property
     def low(self):
+        """The lowest step."""
         return self.levels[0]
 
     @property
     def high(self):
+        """The highest step."""
         return self.levels[-1]
 
     @property
     def varies(self):
+        """True when there is more than one step."""
         return len(self.levels) > 1
 
     def to_dict(self):
+        """JSON-ready description."""
         return {'type': self.kind, 'name': self.name, 'levels': list(self.levels), 'unit': self.unit,
                 'stock': self.stock}
 
@@ -161,13 +171,16 @@ class Categorical:
 
     @property
     def label(self):
+        """The name (categories have no unit)."""
         return self.name
 
     @property
     def varies(self):
+        """True when there is more than one category."""
         return len(self.categories) > 1
 
     def to_dict(self):
+        """JSON-ready description."""
         return {'type': self.kind, 'name': self.name, 'categories': list(self.categories),
                 'volume_ul': self.volume_ul}
 
@@ -176,6 +189,7 @@ KINDS = {cls.kind: cls for cls in (Continuous, Discrete, Categorical)}
 
 
 def from_dict(data):
+    """A variable from ``to_dict`` output (``type`` picks the class)."""
     data = dict(data)
     kind = data.pop('type', None)
     if kind not in KINDS:

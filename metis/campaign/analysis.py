@@ -19,16 +19,19 @@ class PCAMap:
     explained: np.ndarray       # share of the variation between the fitted recipes on each axis
 
     def transform(self, E):
+        """Map coordinates (n, 2) of embedding rows."""
         E = np.asarray(E, dtype=float).reshape(-1, len(self.mean))
         return (E - self.mean) @ self.components.T
 
     def to_dict(self):
+        """JSON-ready form (stored in the round history)."""
         return {'columns': list(self.names), 'mean': [float(v) for v in self.mean],
                 'components': [[float(v) for v in row] for row in self.components],
                 'explained_variance_ratio': [float(v) for v in self.explained]}
 
     @classmethod
     def from_dict(cls, data):
+        """A map from ``to_dict`` output."""
         return cls(list(data['columns']), np.asarray(data['mean'], dtype=float),
                    np.asarray(data['components'], dtype=float).reshape(2, -1),
                    np.asarray(data['explained_variance_ratio'], dtype=float))

@@ -161,6 +161,7 @@ def _same_levels(space, picks, xy):
 
 
 def plot_hillclimb_steps(diag, path, max_steps=20):
+    """Box plots of accepted hill-climbing moves per round and dataset."""
     climbs = diag[diag.hc_steps.notna()].explode('hc_steps')
     climbs = climbs.assign(hc_steps=climbs.hc_steps.astype(float))
     datasets = _order(climbs.dataset, list(DATASET_LABELS))
@@ -221,6 +222,7 @@ def _pca(oracle, n_reference=10000):
 
 
 def plot_pca(cfg, exp_dir, dataset, arms, out, seed=0, rounds=(2, 4, 6, 8, 10)):
+    """PCA maps of the scored pool and the chosen batch for chosen rounds (needs snapshot ``.npz`` files)."""
     from matplotlib.colors import LinearSegmentedColormap
     oracle = _oracle_for_dataset(cfg, dataset)
     space = oracle.space
@@ -307,6 +309,7 @@ def plot_pca(cfg, exp_dir, dataset, arms, out, seed=0, rounds=(2, 4, 6, 8, 10)):
 
 
 def write_modules(cfg, exp_dir):
+    """All figures and tables of the TabPFN module tests into ``<exp_dir>/replay/`` (docs/MODULES.md)."""
     exp_dir = pathlib.Path(exp_dir)
     out = exp_dir / 'replay'
     out.mkdir(parents=True, exist_ok=True)

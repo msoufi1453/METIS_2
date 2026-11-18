@@ -22,12 +22,17 @@ from scipy.stats import qmc
 
 
 class Initializer:
+    """Base class: ``init(space, n, rng, existing)`` returns ``n`` unique feasible grid-index rows.
+
+            ``existing`` holds recipes already measured (e.g. imported data); they are never returned.
+    """
     name = 'init'
 
     def __call__(self, space, n, rng, existing=None):
         raise NotImplementedError
 
     def describe(self):
+        """Name and settings, for result files."""
         return {'name': self.name, **{k: v for k, v in vars(self).items() if not k.startswith('_')}}
 
 
@@ -90,6 +95,7 @@ def _chunked_min_dist(A, B, chunk=2000):
 
 
 def min_pairwise_distance(E):
+    """Smallest distance between any two rows of ``E`` (inf for fewer than 2 rows)."""
     if len(E) < 2:
         return np.inf
     d = np.linalg.norm(E[:, None, :] - E[None, :, :], axis=2)
@@ -97,6 +103,7 @@ def min_pairwise_distance(E):
 
 
 class RandomInit(Initializer):
+    """METIS v1: uniform level per factor with volume rejection."""
     name = 'random'
 
     def __call__(self, space, n, rng, existing=None):
@@ -105,6 +112,7 @@ class RandomInit(Initializer):
 
 
 class SobolInit(Initializer):
+    """Scrambled Sobol points projected to the grid and filtered by volume (see the module docstring)."""
     name = 'sobol'
 
     def __init__(self, scramble=True, max_draw=2 ** 16):
@@ -128,6 +136,11 @@ class SobolInit(Initializer):
 
 
 class MaximinLHSInit(Initializer):
+    """Best of ``n_designs`` Latin-hypercube designs by minimum pairwise distance.
+
+            Each design draws ``oversample * n / feasible rate`` points so about ``oversample * n``
+            survive the volume filter, then keeps ``n`` of them by greedy maximin.
+    """
     name = 'lhs_maximin'
 
     def __init__(self, n_designs=20, oversample=2.0):

@@ -183,6 +183,7 @@ def in_plan(cfg, frame):
 
 
 def write_report(cfg, exp_dir, n_boot=stats.N_BOOTSTRAP):
+    """The confirmatory report of an experiment into ``<exp_dir>/report/`` (docs/BENCHMARK.md, section 3)."""
     exp_dir = pathlib.Path(exp_dir)
     out = exp_dir / 'report'
     out.mkdir(parents=True, exist_ok=True)

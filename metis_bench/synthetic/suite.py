@@ -29,6 +29,7 @@ DIMENSIONS = (12, 27)
 
 @dataclass(frozen=True)
 class FunctionSpec:
+    """A recipe for a synthetic function: subtype, active factors, zero floor, categoricals, contrast, seed."""
     subtype: str
     active: str = 'all'          # 'all' factors, or a 'subset' of 3 to 5 with the rest inert
     zero_fraction: float = 0.0   # share of random feasible recipes floored to zero yield
@@ -38,22 +39,27 @@ class FunctionSpec:
 
     @property
     def landscape(self):
+        """The landscape class of the subtype (smooth, threshold, ...)."""
         return LANDSCAPE_OF[self.subtype]
 
     @property
     def id(self):
+        """A readable id of the spec, e.g. ``broad.all.z00.c0.r129.s8``."""
         return '{}.{}.z{:02d}.c{}.r{:.3g}.s{}'.format(self.subtype, self.active, int(round(100 * self.zero_fraction)),
                                                      self.n_categorical, self.contrast, self.seed)
 
     def function_id(self, n_dims):
+        """The id with the dimension, e.g. ``broad.all.z00.c0.r129.s8.d12``."""
         return '{}.d{}'.format(self.id, n_dims)
 
     def to_dict(self):
+        """The spec as a dict."""
         return asdict(self)
 
     @classmethod
     def from_dict(cls, d):
         # Cast explicitly: rows read back from DataFrames carry NumPy scalars, which JSON rejects.
+        """A spec from a dict (numpy scalars cast to plain Python)."""
         return cls(subtype=str(d['subtype']), active=str(d['active']), zero_fraction=float(d['zero_fraction']),
                    n_categorical=int(d['n_categorical']), contrast=float(d['contrast']), seed=int(d['seed']))
 

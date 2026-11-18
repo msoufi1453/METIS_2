@@ -45,10 +45,12 @@ class RegressorEnsemble(Surrogate):
 
     @property
     def accepts_noise(self):
+        """True when ``noise_weighting`` is on."""
         return self.noise_weighting
 
     def fit(self, X, y, noise_var=None):
         # X and y are passed through untouched: v1 handed label.values (shape (n, 1)) to fit.
+        """Fit every member on the same data (inverse-variance weighted if enabled)."""
         kwargs = {}
         if self.noise_weighting and noise_var is not None:
             kwargs['sample_weight'] = inverse_variance_weights(noise_var)
@@ -57,16 +59,19 @@ class RegressorEnsemble(Surrogate):
         return self
 
     def member_predictions(self, X):
+        """One column per member (``pred_yield_<i>``), as v1's DataFrame."""
         frame = pd.DataFrame(index=pd.RangeIndex(len(X)))
         for index, regressor in enumerate(self.regressors):
             frame['pred_yield_{}'.format(index)] = regressor.predict(X)
         return frame
 
     def predict(self, X):
+        """Mean and sample std (ddof 1) across members."""
         frame = self.member_predictions(X)
         return Prediction(mean=frame.mean(axis=1).to_numpy(), std=frame.std(axis=1).to_numpy())
 
     def describe(self):
+        """Name, member count and weighting."""
         return {'name': self.name, 'members': len(self.regressors), 'noise_weighting': self.noise_weighting}
 
 
@@ -93,6 +98,10 @@ class XGBEnsemble(RegressorEnsemble):
         self.best_params_ = None
 
     def fit(self, X, y, noise_var=None):
+        """Hyperparameter search, then fit the ``ensemble_len`` best settings on all the data.
+
+                ``cv`` is capped at the number of samples, so tiny first rounds still run.
+        """
         X, y = as_2d_float(X), as_1d_float(y)
         fit_kwargs = {}
         if self.noise_weighting and noise_var is not None:
@@ -118,5 +127,6 @@ class XGBEnsemble(RegressorEnsemble):
         return RegressorEnsemble.fit(self, as_2d_float(X), as_1d_float(y), noise_var=noise_var)
 
     def describe(self):
+        """Name and search settings."""
         return {'name': self.name, 'n_iter': self.n_iter, 'ensemble_len': self.ensemble_len, 'cv': self.cv,
                 'noise_weighting': self.noise_weighting}

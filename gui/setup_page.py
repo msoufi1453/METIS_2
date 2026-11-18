@@ -21,6 +21,7 @@ def known_columns():
 
 
 def model_options():
+    """Options the form sets for the chosen model (the number of TabPFN estimators)."""
     ss = st.session_state
     return {'n_estimators': int(ss.f_estimators)} if 'n_estimators' in model_spec(state.model_key()).options else {}
 
@@ -101,18 +102,25 @@ def _liquid_section():
     st.subheader('Liquid handling')
     st.toggle('I am using liquid handling (a droplet dispenser)', key='f_lh',
               help='On: each numeric variable needs a stock concentration, recipes are kept to whole droplets '
-                   'and inside the sample volume, and a pipetting table is made for every round.')
+                   'and inside the pipettable volume, and a pipetting table is made for every round.')
     if not ss.f_lh:
         return
-    columns = st.columns(3)
+    columns = st.columns(4)
     columns[0].number_input('Smallest droplet (nL)', min_value=0.1, format='%g', key='f_droplet')
     columns[1].number_input('Sample volume (µL)', min_value=0.1, format='%g', key='f_volume',
-                            help='The final volume of one sample. Whatever the recipe leaves free is topped up '
-                                 'with the diluent.')
-    columns[2].text_input('Diluent', key='f_diluent', help='The liquid that tops every sample up to its volume.')
+                            help='The final volume of one sample; concentrations are per this volume.')
+    columns[2].number_input('Pipettable volume (µL)', value=None, min_value=0.1, format='%g', key='f_pipettable',
+                            placeholder='whole sample',
+                            help='How much of each sample the dispenser fills. Leave empty when it fills the whole '
+                                 'sample. When part of every sample is taken by liquids the dispenser does not add, '
+                                 'enter the rest: for 10 µL samples with 1.75 µL taken, enter 8.25. The components '
+                                 'and the diluent together then fill this volume, and concentrations stay per '
+                                 'sample volume.')
+    columns[3].text_input('Diluent', key='f_diluent',
+                          help='The liquid that tops every sample up to its pipettable volume.')
     st.caption('Enter each stock concentration in the same unit as that variable\'s values (units may differ '
-               'between variables, but keep them the same from round to round). To include a fixed component, '
-               'such as an extract, add a discrete variable with one step.')
+               'between variables, but keep them the same from round to round). To include a fixed component '
+               'that the dispenser adds, such as an extract, add a discrete variable with one step.')
 
 
 def _variables_section(known):
@@ -259,6 +267,11 @@ def _form(design, campaign, message):
 
 
 def render():
+    """The set-up screen. Returns True when the user has just generated a round.
+
+            Without data it is only the form; with data (a workbook or day 0 upload) the form is
+            the first of five tabs, followed by the PCA map, progress, importance and interactions.
+    """
     ss = st.session_state
     base = ss.base
     state.ensure_pool_size(st.empty())
@@ -302,6 +315,7 @@ def render():
 
 
 def render_upload():
+    """The "Continue a campaign" screen: the workbook uploader (the file goes to ``inbox_workbook``)."""
     ss = st.session_state
     head = st.columns([6, 1])
     head[0].title('Continue a campaign')

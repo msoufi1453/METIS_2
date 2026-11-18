@@ -52,6 +52,7 @@ def _experiment_section(name, report):
 
 
 def write_summary(results_dir, out_path, pilot=False, artifacts='artifacts'):
+    """One markdown overview of every experiment report (pilot or confirmatory)."""
     results_dir = pathlib.Path(results_dir)
     suffix = '-pilot' if pilot else ''
     lines = ['# METIS benchmark: {} results'.format('pilot' if pilot else 'confirmatory'), '']

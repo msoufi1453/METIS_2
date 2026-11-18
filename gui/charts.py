@@ -107,6 +107,7 @@ def pca_map(points, target, variables, explained, moves=None, height=460):
 def map_legend(proposed_label, before=False, paths=False):
     """HTML naming the green marks of the map (they are not part of the chart's own legends)."""
     def swatch(fill, size=12):
+        """An inline HTML circle of the given fill, ringed in dark green."""
         return ('<span style="display:inline-block;width:{0}px;height:{0}px;border-radius:50%;background:{1};'
                 'border:1.5px solid {2};margin:0 6px 0 14px;vertical-align:middle"></span>').format(size, fill, GREEN_INK)
     items = [swatch(GREEN) + proposed_label]

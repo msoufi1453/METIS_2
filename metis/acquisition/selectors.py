@@ -28,6 +28,14 @@ def rank_descending(scores):
 
 @dataclass
 class SelectionContext:
+    """Everything a selector may need for one round.
+
+            ``candidates``: model inputs of the pool; ``prediction``: the surrogate's prediction
+            for them; ``embedding``: coordinates for distances (``DesignSpace.embedding``);
+            ``blocked``: True for rows that must not be picked; ``is_new(i)``: optional extra
+            check (v1's repeat test); ``X_obs`` / ``y_obs`` / ``noise_var``: the training data,
+            for selectors that refit (fantasies); ``best_y``: best measured yield.
+    """
     candidates: np.ndarray
     prediction: Prediction
     surrogate: object
@@ -41,6 +49,7 @@ class SelectionContext:
     best_y: float = None
 
     def available(self, i):
+        """True if candidate ``i`` may be picked (not blocked and passes ``is_new``)."""
         if self.blocked is not None and self.blocked[i]:
             return False
         return self.is_new is None or self.is_new(i)
@@ -48,19 +57,23 @@ class SelectionContext:
 
 @dataclass
 class Selection:
+    """Picked candidate rows, in pick order, and the score each had when picked."""
     indices: np.ndarray
     scores: np.ndarray
 
 
 class BatchSelector:
+    """Base class: ``select(ctx, k)`` returns a ``Selection`` of up to ``k`` candidates."""
     name = 'selector'
     #: False for selectors that ignore the surrogate (the runner then skips fitting).
     needs_model = True
 
     def select(self, ctx, k):
+        """Pick up to ``k`` rows of ``ctx.candidates``."""
         raise NotImplementedError
 
     def describe(self):
+        """Name and settings, for result files."""
         return {'name': self.name}
 
 
@@ -74,15 +87,18 @@ class RandomSelector(BatchSelector):
         self.rng = np.random.default_rng(seed)
 
     def select(self, ctx, k):
+        """``k`` distinct unblocked candidates, uniformly at random."""
         free = np.flatnonzero(~ctx.blocked) if ctx.blocked is not None else np.arange(len(ctx.candidates))
         chosen = self.rng.choice(free, size=min(k, len(free)), replace=False)
         return Selection(chosen.astype(np.int64), np.zeros(len(chosen)))
 
 
 class TopK(BatchSelector):
+    """METIS's rule: the ``k`` highest acquisition scores, skipping unavailable rows."""
     name = 'topk'
 
     def select(self, ctx, k):
+        """Rank by score (v1 ordering) and take the first ``k`` available rows."""
         scores = np.asarray(ctx.acquisition(ctx.prediction, best_y=ctx.best_y))
         chosen = []
         for i in rank_descending(scores):
@@ -112,6 +128,11 @@ class SequentialFantasy(BatchSelector):
     name = 'sequential_fantasy'
 
     def select(self, ctx, k):
+        """Pick, pretend the pick measured its predicted mean, refit a clone, re-score; ``k`` times.
+
+                Refits use ``surrogate.refit`` (hyperparameters kept), so each pick costs one refit
+                and one prediction over the pool.
+        """
         prediction, chosen, fantasies, scores_at_pick = ctx.prediction, [], [], []
         X_obs = np.asarray(ctx.X_obs, dtype=float)
         y_obs = np.asarray(ctx.y_obs, dtype=float).reshape(-1)
@@ -189,6 +210,7 @@ class LocalPenalization(BatchSelector):
         self.min_radius = min_radius
 
     def select(self, ctx, k):
+        """Greedy picks, each multiplying nearby weights by the probability of lying outside its ball."""
         mean = np.asarray(ctx.prediction.mean, float)
         std = np.maximum(np.asarray(ctx.prediction.std, float), 1e-9 * (np.abs(mean).max() + 1.0))
         scores = np.asarray(ctx.acquisition(ctx.prediction, best_y=ctx.best_y), float)
@@ -232,6 +254,7 @@ class LocalPenalization(BatchSelector):
         return Selection(np.array(chosen, dtype=np.int64), np.array(picked_scores))
 
     def describe(self):
+        """Name and settings."""
         return {'name': self.name, 'lipschitz_scale': self.lipschitz_scale,
                 'lipschitz_quantile': self.lipschitz_quantile, 'min_radius': self.min_radius}
 
@@ -256,6 +279,7 @@ class SoftPenalty(BatchSelector):
         self.radius = float(radius)
 
     def select(self, ctx, k):
+        """Greedy picks, each scaling every weight by ``1 - exp(-d^2 / 2r^2)``."""
         scores = np.asarray(ctx.acquisition(ctx.prediction, best_y=ctx.best_y), float)
         E = ctx.embedding
         if E is None:
@@ -274,6 +298,7 @@ class SoftPenalty(BatchSelector):
         return Selection(np.array(chosen, dtype=np.int64), np.array(picked_scores))
 
     def describe(self):
+        """Name and radius."""
         return {'name': self.name, 'radius': self.radius}
 
 
@@ -288,6 +313,7 @@ class GPBUCB(BatchSelector):
     name = 'gp_bucb'
 
     def select(self, ctx, k):
+        """Greedy UCB picks with the variance conditioned on the earlier picks (mean unchanged)."""
         model = ctx.surrogate
         if not hasattr(model, 'posterior_covariance'):
             raise TypeError('GPBUCB needs a surrogate with posterior_covariance (e.g. GPSurrogate)')

@@ -4,7 +4,8 @@ The sheet has the layout of ``iDOT_pipetting_sheet.csv`` in
 https://github.com/msoufi1453/idot-protocol-builder: a header row of wells (``1A`` is
 column 1, row A), then one row per liquid with the volume for each well in µL. Wells fill
 column by column (1A, 1B, ... 1H, 2A, ...), 96 per plate, one well per measurement, in
-the order of the Experiments sheet. The diluent tops every well up to the sample volume.
+the order of the Experiments sheet. The diluent tops every well up to the pipettable
+volume: the whole sample, unless part of it is taken by liquids the dispenser does not add.
 
 The protocol file is built by that repository's ``idot_builder`` (copied to
 ``metis.idot``), which re-reads and verifies the file before handing it over.
@@ -49,6 +50,7 @@ def _text(volume):
 
 @dataclass
 class IdotFile:
+    """An iDOT protocol: the .idotx bytes, the liquid name mapping, the source-plate loading table, warnings."""
     filename: str
     data: bytes                 # the .idotx file (XML)
     liquids: pd.DataFrame       # liquid in the sheet -> its name in the iDOT software
@@ -58,6 +60,7 @@ class IdotFile:
 
 @dataclass
 class PipettingPlan:
+    """Per plate, the volume of every liquid in every well (Decimal uL), the plate layout and notes."""
     plates: list                # one table per plate: liquids as rows, wells as columns, Decimal µL (0 = none)
     layout: pd.DataFrame        # Plate, Well, Sample ID, Data point, Replicate
     notes: list = field(default_factory=list)
@@ -78,6 +81,7 @@ class PipettingPlan:
         return buffer.getvalue()
 
     def idot(self, initials, name, plate=1):
+        """The iDOT protocol for one plate (``initials`` prefix the liquid names)."""
         return idot_protocol(self.csv(plate), initials, name)
 
 
@@ -92,6 +96,7 @@ def pipetting_plan(rows, variables, liquid):
     volumes, notes, used = {}, [], pd.Series(0, index=rows.index, dtype='int64')
 
     def add(name, droplets):
+        """Register a liquid row (raises if two liquids would share a name)."""
         if name in volumes:
             raise VariableError('Two liquids would be called "{}" in the pipetting sheet; rename a variable or '
                                 'the diluent.'.format(name))
@@ -112,9 +117,16 @@ def pipetting_plan(rows, variables, liquid):
     spare = liquid.budget - used
     if (spare < 0).any():
         worst = rows.loc[spare.idxmin()]
-        raise VariableError('Sample {} needs {} µL, more than the {} µL sample.'.format(
-            worst[columns.ID], _number(liquid.volume_ul(int(used.max()))), _number(liquid.sample_volume_ul)))
+        raise VariableError('Sample {} needs {} µL, more than {}.'.format(
+            worst[columns.ID], _number(liquid.volume_ul(int(used.max()))), liquid.limit))
     add(liquid.diluent, spare)
+    if liquid.reserved_ul > 0:
+        notes.append('Each sample is {} µL: {} µL from this table and {} µL that the dispenser does not add.'.format(
+            _number(liquid.sample_volume_ul), _number(liquid.pipettable_ul), _number(liquid.reserved_ul)))
+    filled = float(liquid.volume_ul(liquid.budget))
+    if filled < liquid.pipettable_ul - 1e-9:
+        notes.append('Whole {} nL droplets cannot make exactly {} µL: each well gets {} µL from this table.'.format(
+            _number(liquid.droplet_nl), _number(liquid.pipettable_ul), _number(filled)))
     empty = [name for name, k in volumes.items() if not k.any()]
     for name in empty:
         notes.append('{} is never dispensed in this round, so it is left out of the sheet.'.format(name))

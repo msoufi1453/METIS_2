@@ -26,6 +26,12 @@ import numpy as np
 
 @dataclass(frozen=True)
 class NoiseModel:
+    """Measurement noise for one plate: per-well Gaussian noise plus optional plate effects and outliers.
+
+            Per-well sd = ``sigma_abs * f_max + sigma_rel * |f|``. ``batch_sd``: log-normal plate
+            multiplier; ``offset_sd``: plate offset (fraction of f_max); ``outlier_prob``: chance a
+            well is an outlier; ``n_replicates`` wells per recipe.
+    """
     sigma_abs: float = 0.0
     sigma_rel: float = 0.0
     outlier_prob: float = 0.0
@@ -35,6 +41,7 @@ class NoiseModel:
     name: str = 'custom'
 
     def sd(self, f, f_max):
+        """Per-well noise sd for true values ``f``."""
         return self.sigma_abs * f_max + self.sigma_rel * np.abs(f)
 
     def measure(self, f, f_max, rng):
@@ -55,6 +62,7 @@ class NoiseModel:
         return wells.mean(axis=1), std, wells
 
     def to_dict(self):
+        """Settings as a dict."""
         return asdict(self)
 
 
@@ -67,6 +75,7 @@ PRESETS = {
 
 
 def get_noise(name_or_dict):
+    """A ``NoiseModel`` from a preset name, a dict of settings, or a model (returned as is)."""
     if isinstance(name_or_dict, NoiseModel):
         return name_or_dict
     if isinstance(name_or_dict, dict):

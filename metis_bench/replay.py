@@ -111,6 +111,7 @@ def _swarm_offsets(y, bin_height, half_width=0.36, slots=9):
 
 
 def plot_yields(points, path, datasets, arms):
+    """Box-and-dot plot of every measured recipe by round, one panel per dataset and model."""
     colors = _colors(arms)
     plt, fig, axes = _figure(len(datasets), len(arms), figsize=(2.9 * len(arms) + 0.7, 2.3 * len(datasets) + 0.5),
                              squeeze=False, sharex=True, sharey='row')
@@ -457,6 +458,7 @@ def write_schedule_tuning(cfg, exp_dir):
 
 
 def write_replay(cfg, exp_dir):
+    """Paper-style figures and tables for a replay into ``<exp_dir>/replay/``; returns that folder."""
     exp_dir = pathlib.Path(exp_dir)
     out = exp_dir / 'replay'
     out.mkdir(parents=True, exist_ok=True)

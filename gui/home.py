@@ -5,6 +5,7 @@ from . import state, texts
 
 
 def render():
+    """The home screen: new campaign, continue from a workbook, tutorial (and back to a round in progress)."""
     _, middle, _ = st.columns([1, 2, 1])
     with middle:
         st.title('METIS')

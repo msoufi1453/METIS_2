@@ -23,9 +23,10 @@ dependencies = [
 
 [project.optional-dependencies]
 # tabpfn 2.0.x uses the public (ungated) TabPFN-v2 regressor weights on HuggingFace.
+# Only old configurations with `version: v2` need it.
 tabpfn = ["tabpfn==2.0.9", "torch==2.7.1"]
-# TabPFN-3.5 (open weights, non-commercial licence) for the paper-style replay
-# experiments. Mutually exclusive with `tabpfn` (v2), which the main benchmark uses.
+# TabPFN-3.5 (open weights, non-commercial licence): every TabPFN arm of the benchmark
+# (amendment 5) and the app. Mutually exclusive with `tabpfn` (v2).
 tabpfn35 = ["tabpfn==9.2.0", "torch==2.7.1"]
 # Pick exactly one PyTorch build with the TabPFN extra:
 #   cpu   - any machine (the default for CPU-only workers)

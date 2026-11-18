@@ -14,6 +14,7 @@ class MinMaxTransform:
     """Scales each input column to [0, 1] using ranges seen at fit time."""
 
     def fit(self, X):
+        """Record each column's minimum and range (a constant column gets range 1)."""
         self.lo = X.min(axis=0)
         span = X.max(axis=0) - self.lo
         self.span = np.where(span > 0, span, 1.0)
@@ -55,12 +56,17 @@ class GPSurrogate(Surrogate):
 
     @property
     def accepts_noise(self):
+        """True when ``use_noise`` is on."""
         return self.use_noise
 
     def _transform(self, X):
         return self.transform_(as_2d_float(X))
 
     def fit(self, X, y, noise_var=None, kernel=None):
+        """Standardise ``y``, fit the kernel by maximum likelihood (``n_restarts`` restarts).
+
+                ``kernel``: a fitted kernel to reuse as is (no optimisation; used by ``refit``).
+        """
         X, y = as_2d_float(X), as_1d_float(y)
         self.transform_ = self.input_transform or MinMaxTransform().fit(X)
         Z = self.transform_(X)
@@ -97,6 +103,7 @@ class GPSurrogate(Surrogate):
         return self.fit(X, y, noise_var=noise_var, kernel=self.gp_.kernel_)
 
     def predict(self, X):
+        """Posterior mean and latent std (white noise removed), in yield units."""
         Z = self._transform(X)
         mean, std = self.gp_.predict(Z, return_std=True)
         latent_var = np.maximum(std ** 2 - self.white_, 1e-12)
@@ -112,8 +119,10 @@ class GPSurrogate(Surrogate):
         return (signal(ZA, ZB) - VA.T @ VB) * self.y_scale_ ** 2
 
     def length_scales(self):
+        """Fitted ARD length scales in unit-cube coordinates (small: the factor matters)."""
         return np.atleast_1d(self.gp_.kernel_.k1.k2.length_scale)
 
     def describe(self):
+        """Name and kernel settings."""
         return {'name': self.name, 'nu': self.nu, 'ard': self.ard, 'n_restarts': self.n_restarts,
                 'use_noise': self.use_noise}

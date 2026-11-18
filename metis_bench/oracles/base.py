@@ -28,17 +28,20 @@ class Oracle:
 
     @property
     def f_ref(self):
+        """Median true yield of random feasible recipes (fixed sample): the "1" of normalised regret."""
         if getattr(self, '_f_ref', None) is None:
             sample = self.space.sample(REFERENCE_SAMPLES, np.random.default_rng(REFERENCE_SEED))
             self._f_ref = float(np.median(self(sample)))
         return self._f_ref
 
     def describe(self):
+        """Id, optimum, reference, whether the optimum is exact, and the space summary."""
         return {'id': self.id, 'f_max': self.f_max, 'f_ref': self.f_ref, 'max_is_exact': self.max_is_exact,
                 **self.space.describe(), **(self.meta or {})}
 
 
 class SyntheticOracle(Oracle):
+    """Oracle over a synthetic suite function (its maximum is exact)."""
     def __init__(self, fn):
         self.fn = fn
         self.id = fn.meta['id']
@@ -63,24 +66,29 @@ class PooledSpace(DesignSpace):
 
     @property
     def size(self):
+        """Number of recipes in the pool."""
         return len(self.pool)
 
     def describe(self):
+        """The space summary with the pool size."""
         out = super().describe()
         out['pool_size'] = len(self.pool)
         out['log10_size'] = float(np.log10(len(self.pool)))
         return out
 
     def feasible(self, idx):
+        """True for rows that are recipes of the pool."""
         return np.array([k in self._pool_set for k in self.keys(idx)], dtype=bool)
 
     def sample(self, n, rng, exclude=None, unique=True, max_rounds=None):
+        """Up to ``n`` distinct pool recipes not in ``exclude``, uniformly at random."""
         excluded = set(exclude or ())
         free = np.array([i for i, k in enumerate(self._pool_keys) if k not in excluded], dtype=np.int64)
         take = rng.choice(len(free), size=min(n, len(free)), replace=False)
         return self.pool[free[take]]
 
     def enumerate(self, feasible_only=True, chunk=1_000_000):
+        """Yield the pool in chunks."""
         for start in range(0, len(self.pool), chunk):
             yield self.pool[start:start + chunk]
 

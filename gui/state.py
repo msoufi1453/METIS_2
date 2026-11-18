@@ -16,13 +16,20 @@ DEFAULT_STEPS = 3
 
 
 def form_defaults():
+    """Default value of every ``f_`` form field."""
     return {'f_model': MODELS[DEFAULT_MODEL].label, 'f_name': 'My campaign', 'f_target': 'Result',
             'f_samples': 10, 'f_replicates': 1, 'f_lh': True, 'f_droplet': 4.0, 'f_volume': 10.0,
-            'f_diluent': 'Water', 'f_use_day0': True, 'f_exploit': 0.5, 'f_penalty_on': False, 'f_penalty': 0.0,
-            'f_fantasy': False, 'f_estimators': 8, 'f_seed': 0, 'f_climb_moves': 20, 'f_initials': ''}
+            'f_pipettable': None, 'f_diluent': 'Water', 'f_use_day0': True, 'f_exploit': 0.5,
+            'f_penalty_on': False, 'f_penalty': 0.0, 'f_fantasy': False, 'f_estimators': 8, 'f_seed': 0,
+            'f_climb_moves': 20, 'f_initials': ''}
 
 
 def init():
+    """Set missing session keys to their defaults and re-assign every form key.
+
+            Re-assigning keeps a widget's value when the widget is not drawn in a run (Streamlit
+            would otherwise drop it). Called at the start of every run.
+    """
     ss = st.session_state
     for key, value in {'page': 'home', 'mode': None, 'rows': [], 'next_row': 1, 'base': None, 'day0': None,
                        'round': None, 'analysis': {}, 'notice': None, 'upload_error': None,
@@ -46,6 +53,7 @@ def ensure_pool_size(slot):
 
 
 def go(page):
+    """Switch to ``page`` (home, upload, setup or round) and scroll to the top."""
     st.session_state.page = page
     st.session_state.scroll_top = True          # a new screen starts at its top (gui/app.py)
 
@@ -58,6 +66,7 @@ def model_key():
 
 # --------------------------------------------------------------------------- the form's rows
 def reset_form():
+    """Delete every form key and variable row, then restore the defaults."""
     ss = st.session_state
     for key in [k for k in ss.keys() if k.startswith(FORM_PREFIXES)]:
         del ss[key]
@@ -96,6 +105,7 @@ def add_row(variable=None):
 
 
 def remove_row(r):
+    """Delete variable row ``r`` and all its widget keys."""
     ss = st.session_state
     ss.rows = [x for x in ss.rows if x != r]
     for key in [k for k in ss.keys() if k.startswith('row{}_'.format(r))]:
@@ -103,6 +113,7 @@ def remove_row(r):
 
 
 def set_rows(variables):
+    """Replace the variable rows by one row per ``metis.campaign`` variable."""
     for r in list(st.session_state.rows):
         remove_row(r)
     for variable in variables:
@@ -128,6 +139,7 @@ def _clear_work():
 
 
 def start_new():
+    """Button callback: an empty form with one variable row."""
     reset_form()
     _clear_work()
     add_row()
@@ -136,11 +148,13 @@ def start_new():
 
 
 def start_upload():
+    """Button callback: the "Continue a campaign" upload screen."""
     st.session_state.upload_error = None
     go('upload')
 
 
 def start_tutorial():
+    """Button callback: the form filled with the Borkowski design and its first plate as day 0 data."""
     ss = st.session_state
     reset_form()
     _clear_work()
@@ -168,7 +182,7 @@ def open_campaign(campaign, mode='continue'):
     ss.f_lh = campaign.liquid is not None
     if campaign.liquid is not None:
         ss.f_droplet, ss.f_volume = campaign.liquid.droplet_nl, campaign.liquid.sample_volume_ul
-        ss.f_diluent = campaign.liquid.diluent
+        ss.f_pipettable, ss.f_diluent = campaign.liquid.pipettable_volume_ul, campaign.liquid.diluent
     if campaign.history:
         ss.f_samples = int(campaign.history[-1].get('n_samples') or 10)
         ss.f_replicates = int(campaign.history[-1].get('replicates') or 1)
@@ -214,6 +228,7 @@ def rows_from_day0():
 
 
 def remove_day0():
+    """Forget the day 0 upload (a new uploader key clears the file widget)."""
     ss = st.session_state
     ss.day0, ss.day0_error = None, None
     ss.uploads += 1             # a new key empties the file uploader

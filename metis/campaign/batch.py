@@ -49,6 +49,7 @@ class PenalizedFantasy(BatchSelector):
         self.radius = float(radius)
 
     def select(self, ctx, k):
+        """Greedy fantasy picks whose weights are also multiplied by the distance penalty."""
         if ctx.embedding is None:
             raise ValueError('PenalizedFantasy needs candidate coordinates (embedding)')
         E = np.asarray(ctx.embedding, dtype=float)
@@ -73,6 +74,7 @@ class PenalizedFantasy(BatchSelector):
         return Selection(np.array(chosen, dtype=np.int64), np.array(picked_scores))
 
     def describe(self):
+        """Name and radius."""
         return {'name': self.name, 'radius': self.radius}
 
 

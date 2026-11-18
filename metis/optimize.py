@@ -12,6 +12,7 @@ from .space import DesignSpace
 
 @dataclass
 class Suggestion:
+    """Result of ``suggest``: the picked candidate rows, their prediction and their scores."""
     indices: np.ndarray          # rows of the candidate matrix, in pick order
     prediction: Prediction       # surrogate prediction at the picked rows
     scores: np.ndarray           # acquisition score at pick time
@@ -110,6 +111,7 @@ def bayesian_optimization(regressors_list,
 
     # check to don`t make repeated combinations, but it is not likely
     def is_new(i):
+        """True if candidate ``i`` is not already in ``df_main`` (v1's repeat check)."""
         return check_repetitive(pd.DataFrame([candidates[i]], columns=desired_cols), df_main)
 
     ctx = SelectionContext(candidates=candidates, prediction=prediction, surrogate=surrogate,

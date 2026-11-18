@@ -14,10 +14,12 @@ INTERVAL = 0.8
 
 
 def predicted(target):
+    """Header of the prediction column, e.g. "Predicted Yield"."""
     return 'Predicted {}'.format(target)
 
 
 def prediction_columns(target):
+    """The prediction and its 80% interval bounds, in table order."""
     return [predicted(target), LOW, HIGH]
 
 

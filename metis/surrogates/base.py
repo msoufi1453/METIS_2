@@ -20,6 +20,7 @@ class Prediction:
         return len(self.mean)
 
     def take(self, index):
+        """The predictions at ``index`` (any numpy index)."""
         return Prediction(self.mean[index], self.std[index])
 
 
@@ -38,9 +39,11 @@ class Surrogate:
     accepts_noise = False
 
     def fit(self, X, y, noise_var=None):
+        """Train on inputs ``X`` (n x features) and yields ``y``; return ``self``."""
         raise NotImplementedError
 
     def predict(self, X):
+        """Return a ``Prediction`` (mean and std) for each row of ``X``."""
         raise NotImplementedError
 
     def predict_interval(self, X, level=0.8):
@@ -67,11 +70,13 @@ class Surrogate:
 
 
 def as_2d_float(X):
+    """Inputs as a float array of shape (n, features)."""
     X = np.asarray(X, dtype=float)
     return X.reshape(len(X), -1)
 
 
 def as_1d_float(y):
+    """Labels as a flat float array."""
     return np.asarray(y, dtype=float).reshape(-1)
 
 

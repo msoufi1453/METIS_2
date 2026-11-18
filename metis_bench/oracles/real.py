@@ -64,6 +64,7 @@ def load_borkowski():
 
 
 def load_pure():
+    """The PURE dataset as a DataFrame."""
     return pd.read_csv(PURE_CSV)
 
 
@@ -141,6 +142,7 @@ class GoldRegressorOracle(Oracle):
 
     # ------------------------------------------------------------------ caching
     def save(self, path):
+        """Write the oracle (JSON) and its XGBoost model (``.model.json``) next to it."""
         path = pathlib.Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
         self.model.save_model(str(path.with_suffix('.model.json')))
@@ -149,6 +151,7 @@ class GoldRegressorOracle(Oracle):
 
     @classmethod
     def load(cls, path, space):
+        """Read an oracle written by ``save`` for ``space``."""
         path = pathlib.Path(path)
         info = json.load(open(path))
         model = XGBRegressor()
@@ -158,11 +161,13 @@ class GoldRegressorOracle(Oracle):
 
 # --------------------------------------------------------------------------- Borkowski
 def borkowski_space():
+    """The Borkowski grid: 11 factors at their measured levels (4^11 recipes)."""
     data = load_borkowski()
     return DesignSpace(_levels_space(data[BORKOWSKI_FACTORS], 'borkowski'), name='borkowski')
 
 
 def build_borkowski(seed=0, cache=True):
+    """The Borkowski gold oracle (XGBoost fitted to the data), exact maximum by enumeration; cached."""
     path = CACHE / 'borkowski_gold.json'
     space = borkowski_space()
     if cache and path.exists():
@@ -201,6 +206,7 @@ def _pure_xy():
 
 
 def pure_space(mode='pool'):
+    """PURE's space: the measured recipes only (``mode='pool'``) or the full grid of their levels ('grid')."""
     X, _ = _pure_xy()
     factors = _levels_space(X, 'pure')
     if mode == 'grid':
@@ -238,6 +244,7 @@ def _coordinate_ascent(oracle_fn, space, start, max_sweeps=20):
 
 
 def build_pure(mode='pool', seed=0, cache=True):
+    """The PURE gold oracle for ``mode`` (pool or grid); cached in artifacts/oracles/."""
     path = CACHE / 'pure_gold_{}.json'.format(mode)
     space = pure_space(mode)
     if cache and path.exists():

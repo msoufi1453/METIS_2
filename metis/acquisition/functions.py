@@ -4,12 +4,14 @@ from scipy.stats import norm
 
 
 class Acquisition:
+    """Base class: ``acq(prediction, best_y=None)`` returns one score per candidate (higher is better)."""
     name = 'acquisition'
 
     def __call__(self, prediction, best_y=None):
         raise NotImplementedError
 
     def describe(self):
+        """Name and settings, for result files."""
         return {'name': self.name}
 
 
@@ -30,10 +32,15 @@ class UCB(Acquisition):
         return self.exploitation * prediction.mean + self.exploration * prediction.std
 
     def describe(self):
+        """Name and both weights."""
         return {'name': self.name, 'exploitation': self.exploitation, 'exploration': self.exploration}
 
 
 class ExpectedImprovement(Acquisition):
+    """Expected improvement over ``best_y`` (or the best predicted mean), assuming a normal prediction.
+
+            ``xi`` demands a margin before an improvement counts (larger: more exploration).
+    """
     name = 'ei'
 
     def __init__(self, xi=0.0):
@@ -46,4 +53,5 @@ class ExpectedImprovement(Acquisition):
         return (mean - best - self.xi) * norm.cdf(z) + std * norm.pdf(z)
 
     def describe(self):
+        """Name and ``xi``."""
         return {'name': self.name, 'xi': self.xi}

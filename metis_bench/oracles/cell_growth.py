@@ -46,6 +46,7 @@ SOURCE = ('Aida H, Ying B-W (2024) Data-driven discovery of the interplay betwee
 
 
 def data_file():
+    """Path of the cell-growth data (environment variable ``METIS_CELL_GROWTH`` or the default file)."""
     return pathlib.Path(os.environ.get('METIS_CELL_GROWTH', DEFAULT_FILE))
 
 
@@ -105,6 +106,7 @@ class StrainMediumSpace(PooledSpace):
         self.n_media = len(media)
 
     def neighbors(self, row, k=None, feasible_only=True):
+        """Neighbours of a recipe: the same medium with another strain, or a nearby medium with the same strain."""
         row = np.asarray(row, dtype=np.int64)
         m = self._medium_of[np.ascontiguousarray(row[:self.n_conc].astype(np.uint8)).tobytes()]
         s = row[self.strain_dim]

@@ -49,6 +49,7 @@ LEARN_SIZES = (32, 100, 300)
 
 # --------------------------------------------------------------------------- distribution
 def distribution(y):
+    """Shape of the yield distribution: share near zero, skewness, log10(99th percentile / median)."""
     y = np.asarray(y, float)
     top = float(np.quantile(y, 0.99))
     med = float(np.median(y))
@@ -70,6 +71,7 @@ def draw(space, n, rng, marginals=None):
 
 
 def empirical_marginals(space, idx, smoothing=0.0):
+    """Per dimension, the share of points at each level (with optional smoothing)."""
     out = []
     for d in range(space.n_dims):
         counts = np.bincount(idx[:, d], minlength=space.cardinalities[d]).astype(float) + smoothing
@@ -116,6 +118,7 @@ def _factor_of_dim(space):
 
 
 def sobol_summary(sob, space):
+    """First-order, pairwise and higher-order Sobol shares, and how many factors carry 80% of the effect."""
     s_first = float(np.clip(np.sum(np.clip(sob['S1'], 0, None)), 0, 1))
     s_pair = float(np.clip(sob['S2_sum'], 0, 1 - s_first))
     ST_factor = np.bincount(_factor_of_dim(space), weights=np.clip(sob['ST'], 0, None), minlength=space.n_factors)
@@ -181,6 +184,7 @@ def corr_length_model(f, space, rng, n_pairs=3000, marginals=None):
 
 
 def corr_length_raw(space, idx, y, rng, max_points=800):
+    """Correlation length of the yields (variogram), relative to the median pairwise distance."""
     n = len(idx)
     keep = rng.choice(n, size=min(n, max_points), replace=False)
     i, j = np.triu_indices(len(keep), 1)

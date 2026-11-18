@@ -38,11 +38,13 @@ The same functions are available in Python as `metis.campaign` (`Campaign`, `Con
 | `metis.acquisition` | Pluggable acquisition: `UCB`, `ExpectedImprovement`, and batch selectors `TopK`, `SequentialFantasy`, `LocalPenalization`, `GPBUCB` |
 | `metis.space` | `DesignSpace`, the droplet grid as an explicit, vectorised space |
 | `metis.optimize` | `bayesian_optimization` / `batch_ucb` (v1 wrappers) and `suggest_combinations` (pluggable entry point) |
-
+| `metis.pools`, `metis.hillclimb` | Where candidate recipes come from (random, or mutations of the best), and discrete hill-climbing on the acquisition score |
 | `metis.initialization` | Initial designs on the droplet grid: random (v1), scrambled Sobol, maximin LHS, fill-the-unsampled-region for imported data |
 | `metis.schedules` | Exploration schedules: v1 list, constant, linear/exponential decay, GP-UCB rate, adaptive |
 | `metis.campaign` | Campaigns in a few lines, and the engine of the app: variables, liquid handling, rounds, the Excel workbook, pipetting sheet, PCA map, importance, interactions |
 | `metis.idot` | iDOT protocol files (`.idotx`), a copy of [idot-protocol-builder](https://github.com/msoufi1453/idot-protocol-builder) |
+
+A walk through every part of the code, with troubleshooting and speed notes: [docs/CODEBASE.md](docs/CODEBASE.md).
 
 Environment: `uv sync --extra tabpfn35 --extra cpu` (or `--extra cu126` / `cu128` on an NVIDIA GPU) creates the pinned environment from `uv.lock` (Python 3.11). `uv run pytest` runs the tests; `tests/test_regression_legacy.py` checks that one seeded METIS round reproduces the original output byte for byte.
 

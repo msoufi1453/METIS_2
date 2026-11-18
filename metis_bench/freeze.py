@@ -13,11 +13,13 @@ FROZEN_FILES = ('metrics.py', 'stats.py')
 
 def current_hashes():
     # Normalise line endings so Windows checkouts (CRLF) hash like everyone else's.
+    """SHA-256 of each frozen file now (CRLF normalised to LF)."""
     return {name: hashlib.sha256((HERE / name).read_bytes().replace(b'\r\n', b'\n')).hexdigest()
             for name in FROZEN_FILES}
 
 
 def recorded_hashes():
+    """The hashes recorded in FROZEN.json."""
     return json.loads((HERE / 'FROZEN.json').read_text())['sha256']
 
 

@@ -15,6 +15,10 @@ from dataclasses import dataclass, field
 
 @dataclass(frozen=True)
 class ModelSpec:
+    """A registered model: key, label, ``build(seed, **options)``, limits and defaults.
+
+            ``pool_size`` is (candidates with a GPU, without one); ``note`` is shown in the app.
+    """
     key: str
     label: str
     build: object               # build(seed=0, **options) -> Surrogate
@@ -29,17 +33,20 @@ DEFAULT_MODEL = 'tabpfn35'
 
 
 def register_model(key, label, build, max_variables, options=None, pool_size=(10000, 10000), note=''):
+    """Add (or replace) a model in ``MODELS``; returns its ``ModelSpec``."""
     MODELS[key] = ModelSpec(key, label, build, int(max_variables), dict(options or {}), tuple(pool_size), note)
     return MODELS[key]
 
 
 def model_spec(key):
+    """The ``ModelSpec`` for ``key`` (KeyError listing the registered keys)."""
     if key not in MODELS:
         raise KeyError('unknown model {!r}; registered: {}'.format(key, ', '.join(MODELS)))
     return MODELS[key]
 
 
 def make_model(key, seed=0, **options):
+    """A fresh surrogate: the spec's default options updated with ``options``."""
     spec = model_spec(key)
     return spec.build(seed=seed, **{**spec.options, **options})
 
@@ -55,6 +62,7 @@ def has_gpu():
 
 
 def default_pool_size(key):
+    """Candidates scored per round for this model on this machine (GPU or not)."""
     with_gpu, without = model_spec(key).pool_size
     return with_gpu if has_gpu() else without
 

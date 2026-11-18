@@ -98,6 +98,12 @@ def active(cfg, r):
 
 
 def make_surrogate(cfg, space, rng, use_noise):
+    """A fresh surrogate for one round from the arm's ``surrogate`` block.
+
+            Types: ``xgb_ensemble``, ``gp_matern`` (given the space's own unit transform),
+            ``tabpfn`` and ``linear_ensemble`` (20 identical linear models: zero spread, so UCB
+            ranks by the mean). ``rng`` seeds the model; ``use_noise`` turns on noise weighting.
+    """
     kind, p = cfg['type'], _params(cfg)
     if kind == 'xgb_ensemble':
         return XGBEnsemble(random_state=rng, noise_weighting=use_noise, **p)
@@ -112,6 +118,7 @@ def make_surrogate(cfg, space, rng, use_noise):
 
 
 def make_acquisition(cfg):
+    """The acquisition from the arm's ``acquisition`` block (``ucb`` or ``ei``)."""
     kind, p = cfg['type'], _params(cfg)
     if kind == 'ucb':
         return UCB(**p)
@@ -137,12 +144,15 @@ def make_selector(cfg, rng=None, spacing=None):
 
 
 def make_pool(cfg):
+    """The candidate pool (``metis.pools.make``)."""
     return pools.make(cfg)
 
 
 def make_schedule(cfg):
+    """The exploration schedule (``metis.schedules.make``)."""
     return schedules.make(cfg)
 
 
 def make_initializer(cfg):
+    """The initial design (``metis.initialization.make``; type ``none`` gives None)."""
     return initialization.make(cfg)

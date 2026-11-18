@@ -73,6 +73,11 @@ def _resolve_arms(cfg):
 
 
 def load(path, pilot=False):
+    """Read an experiment YAML. With ``pilot`` apply its ``pilot`` block and append ``-pilot``.
+
+            ``cfg['pilot']`` always ends up True or False, never the override block, so reports
+            and tuning files cannot mistake a confirmatory run for a pilot.
+    """
     cfg = yaml.safe_load(pathlib.Path(path).read_text())
     cfg.setdefault('settings', {})
     # The file's `pilot` block holds overrides; cfg['pilot'] itself is only ever True or
@@ -132,6 +137,7 @@ def _untuned_tabpfn_pilot(cfg):
 
 
 def load_suite(path):
+    """The synthetic functions of ``suite/suite.json`` (written by ``calibrate``)."""
     path = ROOT / path if not pathlib.Path(path).is_absolute() else pathlib.Path(path)
     if not path.exists():
         raise FileNotFoundError('{} not found: run `python -m metis_bench calibrate` first'.format(path))
@@ -159,6 +165,7 @@ def stratified_sample(functions, n):
 
 
 def problem_configs(cfg):
+    """Every problem the experiment runs (suite functions, real-data oracles, measured data), as dicts."""
     p = cfg['problems']
     out = []
     noises = p.get('noise', ['realistic'])
@@ -206,11 +213,13 @@ def problem_configs(cfg):
 
 
 def seeds_of(cfg):
+    """Seeds from the ``[start, stop)`` pair in the file (default 0 to 49)."""
     start, stop = cfg.get('seeds', [0, 50])
     return list(range(start, stop))
 
 
 def tasks(cfg, out_dir):
+    """``(problem, arm, seed, settings, result path)`` for every campaign of the experiment."""
     from .problems import get_problem
 
     settings = {**vars(Settings()), **cfg.get('settings', {})}

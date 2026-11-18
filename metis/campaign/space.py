@@ -32,6 +32,7 @@ class _Axis:
         self.name = variable.name
 
     def encode(self, series):
+        """A column of a table as numbers (raises ``VariableError`` for non-numbers)."""
         values = pd.to_numeric(series, errors='coerce').to_numpy(dtype=float)
         bad = ~np.isfinite(values)
         if bad.any():
@@ -39,19 +40,24 @@ class _Axis:
         return values
 
     def decode(self, values):
+        """Numbers back to table values."""
         return np.asarray(values, dtype=float)
 
     def features(self, values):
+        """Model-input columns for these values."""
         return np.asarray(values, dtype=float)[:, None]
 
     def embedding(self, values):
+        """Distance coordinates for these values (unit scale)."""
         return self.unit(values)[:, None]
 
     def droplets(self, values):
+        """Droplets each value takes (0 when not pipetted)."""
         return np.zeros(len(values), dtype=np.int64)
 
     @property
     def feature_names(self):
+        """Names of the model-input columns."""
         return [self.name]
 
 
@@ -65,18 +71,23 @@ class _Interval(_Axis):
         self.low, self.high = variable.low, variable.high
 
     def sample(self, n, rng):
+        """Uniform values in the range."""
         return rng.uniform(self.low, self.high, size=n)
 
     def from_unit(self, u):
+        """Unit-cube values mapped onto the range."""
         return self.low + np.asarray(u, dtype=float) * (self.high - self.low)
 
     def snap(self, values):
+        """Values clipped into the range."""
         return np.clip(np.asarray(values, dtype=float), self.low, self.high)
 
     def unit(self, values):
+        """Values as positions in [0, 1]."""
         return (np.asarray(values, dtype=float) - self.low) / (self.high - self.low)
 
     def moves(self, value):
+        """Hill-climbing neighbours: one twentieth of the range down and up, clipped."""
         step = (self.high - self.low) / CLIMB_STEPS
         targets = (max(value - step, self.low), min(value + step, self.high))
         return [t for t in targets if abs(t - value) > 1e-9 * (self.high - self.low)]
@@ -98,22 +109,28 @@ class _DropletGrid(_Axis):
         return self.liquid.concentration(self.variable, droplets)
 
     def sample(self, n, rng):
+        """Uniform whole droplet counts in the range, as concentrations."""
         return self._values(rng.integers(self.first, self.last + 1, size=n))
 
     def from_unit(self, u):
+        """Unit-cube values mapped onto droplet counts."""
         offset = np.minimum((np.asarray(u, dtype=float) * self.cardinality).astype(np.int64), self.cardinality - 1)
         return self._values(self.first + offset)
 
     def snap(self, values):
+        """Values moved to the nearest whole droplet inside the range."""
         return self._values(np.clip(self.droplets(values), self.first, self.last))
 
     def unit(self, values):
+        """Values as positions in [0, 1] over the variable's range."""
         return (np.asarray(values, dtype=float) - self.variable.low) / (self.variable.high - self.variable.low)
 
     def droplets(self, values):
+        """Droplets each concentration takes."""
         return self.liquid.droplets(self.variable, values)
 
     def moves(self, value):
+        """Hill-climbing neighbours: ``stride`` droplets down and up (about 1/20 of the range)."""
         k = int(self.droplets([value])[0])
         targets = {min(max(k + d, self.first), self.last) for d in (-self.stride, self.stride)} - {k}
         return [float(v) for v in self._values(sorted(targets))]
@@ -134,24 +151,30 @@ class _Levels(_Axis):
         return np.abs(np.asarray(values, dtype=float)[:, None] - self.levels[None, :]).argmin(axis=1)
 
     def sample(self, n, rng):
+        """Uniform choice of the steps."""
         return self.levels[rng.integers(0, self.cardinality, size=n)]
 
     def from_unit(self, u):
+        """Unit-cube values mapped onto the steps."""
         return self.levels[np.minimum((np.asarray(u, dtype=float) * self.cardinality).astype(np.int64),
                                       self.cardinality - 1)]
 
     def snap(self, values):
+        """Values moved to the nearest step."""
         return self.levels[self._index(values)]
 
     def unit(self, values):
+        """Values as positions in [0, 1] (log scale when the steps span two decades or more)."""
         return np.asarray(self._scale.to_unit(values), dtype=float)
 
     def droplets(self, values):
+        """Droplets each step takes (0 without liquid handling)."""
         if self.liquid is None:
             return np.zeros(len(values), dtype=np.int64)
         return self.liquid.droplets(self.variable, values)
 
     def moves(self, value):
+        """Hill-climbing neighbours: the step below and the step above."""
         i = int(self._index([value])[0])
         return [float(self.levels[j]) for j in (i - 1, i + 1) if 0 <= j < self.cardinality]
 
@@ -168,6 +191,7 @@ class _Categories(_Axis):
         self.cost = liquid.category_droplets(variable) if liquid is not None and variable.volume_ul > 0 else 0
 
     def encode(self, series):
+        """Category names as positions in ``all`` (raises for an unknown category)."""
         position = {c: i for i, c in enumerate(self.all)}
         names = [clean_category(v) for v in series.to_numpy()]
         unknown = [n for n in names if n not in position]
@@ -176,32 +200,41 @@ class _Categories(_Axis):
         return np.array([position[n] for n in names], dtype=float)
 
     def decode(self, values):
+        """Positions back to category names."""
         return np.array([self.all[int(v)] for v in values], dtype=object)
 
     def features(self, values):
+        """One-hot columns over every category, including ``extra`` ones."""
         return np.eye(self.width)[np.asarray(values, dtype=np.int64)]
 
     def embedding(self, values):
+        """One-hot / sqrt(2), so two different categories are exactly 1 apart."""
         return self.features(values) / math.sqrt(2.0)     # two different categories are exactly 1 apart
 
     def droplets(self, values):
+        """The category volume in droplets (the same for every category)."""
         return np.full(len(values), self.cost, dtype=np.int64)
 
     def sample(self, n, rng):
+        """Uniform choice of the active categories."""
         return rng.integers(0, self.cardinality, size=n).astype(float)
 
     def from_unit(self, u):
+        """Unit-cube values mapped onto the active categories."""
         return np.minimum((np.asarray(u, dtype=float) * self.cardinality).astype(np.int64),
                           self.cardinality - 1).astype(float)
 
     def snap(self, values):
+        """Unchanged (positions are already valid)."""
         return np.asarray(values, dtype=float)
 
     def moves(self, value):
+        """Hill-climbing neighbours: every other active category."""
         return [float(c) for c in range(self.cardinality) if c != int(value)]
 
     @property
     def feature_names(self):
+        """``"<variable> = <category>"`` for every category."""
         return ['{} = {}'.format(self.name, c) for c in self.all]
 
 
@@ -223,6 +256,14 @@ def min_distance(E):
 
 
 class RecipeSpace:
+    """The recipes a campaign can propose, as rows of numbers (one per variable).
+
+            Each variable becomes an axis: ``_Interval`` (continuous, no liquid handling),
+            ``_DropletGrid`` (continuous, whole droplets), ``_Levels`` (discrete) or
+            ``_Categories``. ``budget`` is the droplets one sample holds (None: no limit).
+            ``extra_categories`` maps a categorical variable to categories that occur in the
+            data but are no longer offered: they are encoded, never proposed.
+    """
     def __init__(self, variables, liquid=None, extra_categories=None):
         self.variables = list(variables)
         self.liquid = liquid
@@ -241,6 +282,7 @@ class RecipeSpace:
     # ------------------------------------------------------------------ basic facts
     @property
     def n_vars(self):
+        """Number of variables (columns of a recipe row)."""
         return len(self.axes)
 
     @property
@@ -268,6 +310,7 @@ class RecipeSpace:
 
     # ------------------------------------------------------------------ tables <-> rows
     def encode(self, frame):
+        """A table with a column per variable as recipe rows."""
         missing = [name for name in self.names if name not in frame.columns]
         if missing:
             raise VariableError('No column for {}.'.format(', '.join(missing)))
@@ -276,16 +319,19 @@ class RecipeSpace:
         return np.column_stack([axis.encode(frame[axis.name]) for axis in self.axes])
 
     def decode(self, R):
+        """Recipe rows as a table (category names restored)."""
         R = self._matrix(R)
         return pd.DataFrame({axis.name: axis.decode(R[:, j]) for j, axis in enumerate(self.axes)})
 
     # ------------------------------------------------------------------ model inputs and distances
     def features(self, R):
+        """Model inputs: numeric values as is, categories one-hot."""
         R = self._matrix(R)
         return np.hstack([axis.features(R[:, j]) for j, axis in enumerate(self.axes)])
 
     @property
     def feature_names(self):
+        """Names of the model-input columns."""
         return [name for axis in self.axes for name in axis.feature_names]
 
     @property
@@ -304,6 +350,7 @@ class RecipeSpace:
 
     # ------------------------------------------------------------------ volume
     def droplets(self, R):
+        """Total droplets per recipe."""
         R = self._matrix(R)
         total = np.zeros(len(R), dtype=np.int64)
         for j, axis in enumerate(self.axes):
@@ -311,6 +358,7 @@ class RecipeSpace:
         return total
 
     def feasible(self, R):
+        """True for recipes that fit in the sample (always True without liquid handling)."""
         R = self._matrix(R)
         if self.budget is None:
             return np.ones(len(R), dtype=bool)

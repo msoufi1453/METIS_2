@@ -351,3 +351,62 @@ def test_edited_cells_are_rounded_checked_and_predicted_again():
     assert undone['changed'] and undone['table'].equals(log[2]['table']) and undone['edits'] == 2
     assert 'Data point 3 would need 12 µL, more than the 10 µL sample' in undone['notice'] and undone['version'] == 3
     assert 'already the nearest' in log[4]['notice'] and log[4]['table'].equals(log[2]['table'])
+
+
+def test_pipettable_volume_is_set_kept_and_used():
+    at = new_campaign_with_three_variables(start())
+    assert at.number_input(key='f_pipettable').value is None                    # empty: the whole sample
+    ok(at.number_input(key='f_pipettable').set_value(12.0).run())
+    assert [w.value for w in at.warning] == ['The pipettable volume (12 µL) cannot be more than the sample volume '
+                                             '(10 µL).'] and at.button(key='b_generate').disabled
+    ok(at.number_input(key='f_pipettable').set_value(8.25).run())
+    assert not at.warning and not at.button(key='b_generate').disabled
+    ok(at.button(key='b_generate').click().run())
+    rnd = at.session_state['round']
+    liquid = rnd['campaign'].liquid
+    assert (liquid.sample_volume_ul, liquid.pipettable_ul) == (10.0, 8.25)
+    assert any('"Water" tops each well up to 8.25 µL' in m.value for m in at.markdown)
+    assert any('1.75 µL that the dispenser does not add' in c.value for c in at.caption)
+    sums = rnd['staged']['plain']['plan'].table(1).fillna(0).sum()
+    assert sums.tolist() == pytest.approx([8.248] * 10)                       # 2062 whole droplets of 4 nL
+    ok(at.button(key='b_back').click().run())                            # back: the value is kept
+    assert at.number_input(key='f_pipettable').value == 8.25
+    filled = Campaign.from_workbook(rnd['staged']['plain']['workbook'], require_results=False)
+    filled.data[filled.target] = lab(filled.data)
+    again = start()                                                      # continuing the campaign restores it
+    again.session_state['inbox_workbook'] = filled.to_workbook()
+    ok(again.run())
+    assert again.session_state['page'] == 'setup' and again.number_input(key='f_pipettable').value == 8.25
+
+
+def pipettable_edit_script():
+    """Runs inside the test client: an edit that fits the 10 uL sample but not the 8.25 uL the dispenser fills
+    (no non-ASCII characters here: the client saves this function to a file in the system's encoding)."""
+    import streamlit as st
+
+    from gui import round_page
+    from metis.campaign import Campaign, Continuous, LiquidHandling
+    from tests.helpers import register_fast_model
+
+    campaign = Campaign([Continuous('a', 0, 60, unit='mM', stock=100), Continuous('b', 0, 60, unit='mM', stock=100)],
+                        model=register_fast_model(),
+                        liquid_handling=LiquidHandling(sample_volume_ul=10, pipettable_volume_ul=8.25))
+    proposal = campaign.propose(3)
+    rnd = {'campaign': campaign, 'proposal': proposal, 'climbed': None, 'replicates': 1,
+           'tables': {'plain': proposal.table}, 'edits': {'plain': 0, 'climbed': 0}, 'version': 0, 'staged': {}}
+    log = []
+    for a, b in ((50.0, 40.0), (40.0, 40.0)):              # 9 uL: fits the sample, not the dispenser; then 8 uL
+        edited = rnd['tables']['plain'].copy()
+        edited.loc[0, 'a'], edited.loc[0, 'b'] = a, b
+        st.session_state.notice = None
+        round_page.apply_edit(rnd, 'plain', proposal, edited)
+        log.append((st.session_state.notice, rnd['tables']['plain'].loc[0, ['a', 'b']].tolist()))
+    st.session_state.log, st.session_state.start = log, proposal.table.loc[0, ['a', 'b']].tolist()
+
+
+def test_an_edit_must_fit_the_pipettable_volume():
+    at = ok(AppTest.from_function(pipettable_edit_script, default_timeout=120).run())
+    (undone, kept), first = at.session_state['log'], at.session_state['start']
+    assert undone == ('Data point 1 would need 9 µL, more than the 8.25 µL that can be pipetted into each 10 µL '
+                      'sample: the change was undone.', first)
+    assert kept == (None, [40.0, 40.0])

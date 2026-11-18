@@ -50,6 +50,11 @@ def take_uploads():
 
 
 def show_screen():
+    """Draw the current screen (``session_state.page``: home, upload, setup or round).
+
+            Two fixed slots, so the round screen can replace the set-up screen in the same run
+            right after "Generate".
+    """
     page = st.session_state.page
     if page == 'round' and st.session_state.round is None:
         page = 'home'
@@ -70,6 +75,7 @@ def show_screen():
 
 
 def main():
+    """One Streamlit run: initialise the state, take pending uploads, draw the screen, scroll to the top if asked."""
     _loading.empty()
     state.init()
     take_uploads()

@@ -20,6 +20,7 @@ import numpy as np
 
 @dataclass
 class Term:
+    """A lookup table over one or two grid dimensions: ``table[idx[:, d0], idx[:, d1]]``."""
     dims: tuple
     table: np.ndarray
     label: str = ''
@@ -133,6 +134,7 @@ class SyntheticFunction:
     meta: dict = field(default_factory=dict)
 
     def raw(self, idx):
+        """The unscaled value ``g(x)``: the maximum over components."""
         idx = np.atleast_2d(idx)
         return np.max(np.stack([c(idx) for c in self.components]), axis=0)
 
@@ -140,6 +142,7 @@ class SyntheticFunction:
         return self.scale * np.maximum(self.raw(idx) - self.floor, 0.0)
 
     def raw_max(self):
+        """Exact maximum of ``g`` over feasible points, and a maximiser."""
         best, best_x = -np.inf, None
         for component in self.components:
             value, x = component_max(component, self.space)

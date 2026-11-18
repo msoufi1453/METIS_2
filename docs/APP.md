@@ -43,7 +43,7 @@ The same form serves a new campaign and every later round.
 | Model | TabPFN-3.5 (the only one for now; see [Adding a model](#adding-a-model)) |
 | Day 0 data (optional) | Results you already have: a CSV or Excel table with one column per variable and one for the measured value. Every measurement is a row; replicates of a recipe are rows with the same recipe. *Download a template* gives the right header for the variables in the form. Uploading fills in the variable rows from the columns, for you to adjust |
 | Size of the round | Recipes per round (default 10) and replicates of each (default 1) |
-| Liquid handling | On by default: the smallest droplet (4 nL), the sample volume and the diluent. Each numeric variable then needs its stock concentration |
+| Liquid handling | On by default: the smallest droplet (4 nL), the sample volume, the pipettable volume (empty: the whole sample) and the diluent. Each numeric variable then needs its stock concentration |
 | Variables | One row each: **continuous** (minimum, maximum), **discrete** (a number of steps, then that many values; at most 100) or **categorical** (a number of categories, then their names). A unit per numeric variable; units may differ between variables. Up to 6,000 variables with TabPFN |
 | Exploration and exploitation | The ratio in the score `ratio x prediction + (1 - ratio) x uncertainty`, and the two batch modules |
 | Advanced settings | Candidates to score, TabPFN estimators, the random seed, the cap on hill-climbing moves |
@@ -72,7 +72,14 @@ A dispenser adds whole droplets. With a stock of concentration `S`, droplets of 
 a sample of `V` µL, one droplet adds `S x d / (1000 x V)` to the sample.
 
 * Every proposed concentration is a whole number of droplets, and a recipe's droplets
-  together never exceed the sample. The diluent tops each sample up.
+  together never exceed the pipettable volume. The diluent tops each sample up to it.
+* **Pipettable volume**: how much of each sample the dispenser fills. Leave it empty when
+  the dispenser fills the whole sample. When part of every sample is taken by liquids the
+  dispenser does not add, enter the rest: for 10 µL samples of which 1.75 µL are taken,
+  enter 8.25. Concentrations stay per the whole 10 µL, recipes must fit in 8.25 µL, and the
+  pipetting table fills 8.25 µL per well (in whole droplets: 8.248 µL with 4 nL droplets,
+  which the table notes). A fixed component that the dispenser does add is a discrete
+  variable with one step instead.
 * Discrete steps are rounded to whole droplets; the form lists steps that move by more
   than 0.1%.
 * **The form checks the stocks**: a maximum above the stock concentration, a range in which
@@ -82,7 +89,8 @@ a sample of `V` µL, one droplet adds `S x d / (1000 x V)` to the sample.
   those maximums or use more concentrated stocks.
 * *Pipetting check* (an expander under the variables) shows, per variable, what one
   droplet adds and the volume at its minimum and maximum.
-* A fixed component (an extract, a buffer) is a discrete variable with one step.
+* A fixed component that the dispenser adds (an extract, a buffer) is a discrete variable
+  with one step.
 * A categorical variable can have a pipetted volume: each category is then its own liquid
   (for example a DNA template). With volume 0 it is set by hand.
 

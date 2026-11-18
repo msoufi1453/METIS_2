@@ -75,6 +75,7 @@ def select_winner(runs, metric=metrics.PRIMARY_ENDPOINT, exclude=()):
 
 
 def write_winner(path, cfg, winner_name, table):
+    """Write the tuned fragment (the winning arm's part), the table and provenance to ``path``."""
     part = cfg['tuning']['part']
     arm = next(a for a in cfg['arms'] if a['name'] == winner_name)
     path = pathlib.Path(path)

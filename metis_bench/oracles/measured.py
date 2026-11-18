@@ -114,6 +114,7 @@ OTHER_MEASURED = {'cell_growth': _cell_growth}
 
 @functools.lru_cache(maxsize=8)
 def build_measured(name):
+    """The measured-data oracle for ``name`` (the four replay datasets, or one of ``OTHER_MEASURED``)."""
     if name in OTHER_MEASURED:
         return OTHER_MEASURED[name]()
     return MeasuredOracle(name)

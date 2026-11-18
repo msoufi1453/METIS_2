@@ -21,6 +21,7 @@ ROW_HEIGHT = 35         # of Streamlit's tables, to size them to their rows
 
 
 def table_height(rows, most=800):
+    """Pixel height that shows ``rows`` table rows without scrolling (capped at ``most``)."""
     return min(ROW_HEIGHT * (rows + 1) + 3, most)
 
 
@@ -42,6 +43,7 @@ def _cache(campaign):
 
 
 def fitted_model(campaign, fitted=None):
+    """The campaign's fitted model, fitted once per campaign fingerprint (``fitted`` seeds the cache)."""
     cache = _cache(campaign)
     if fitted is not None:
         cache['fitted'] = fitted
@@ -57,6 +59,7 @@ def _interval(mean, low, high):
 
 
 def round_name(number):
+    """"Round 0 (day 0 data)" or "Round n"."""
     return 'Round 0 (day 0 data)' if int(number) == 0 else 'Round {}'.format(int(number))
 
 
@@ -172,6 +175,7 @@ def pca_tab(campaign, proposed=None, before=None, moves=None, round_number=None,
 
 
 def progress_tab(campaign):
+    """The Progress tab: every measured recipe by round, the best so far, and the table."""
     table = campaign.progress()
     if len(table) < 2:
         st.info('Progress over the rounds is shown once two rounds have results.')
@@ -198,6 +202,7 @@ def _compute_importance(campaign, fitted):
 
 
 def importance_tab(campaign, fitted=None, key='setup'):
+    """The Importance tab: computed on a button press (cached), then drawn as a ranking."""
     st.caption(texts.IMPORTANCE)
     if len(campaign.measured) < 2:
         st.info('Importance needs at least two measured results.')
@@ -222,6 +227,11 @@ def importance_tab(campaign, fitted=None, key='setup'):
 
 
 def interactions_tab(campaign, fitted=None, key='setup'):
+    """The Interactions tab: computed on a button press (cached), then drawn as a ranking.
+
+            With more than 12 varying variables only the 12 most important are paired, so the
+            importance ranking is computed first.
+    """
     st.caption(texts.INTERACTIONS.format(target=campaign.target))
     varying = [v for v in campaign.variables if v.varies]
     if len(campaign.measured) < 2 or len(varying) < 2:

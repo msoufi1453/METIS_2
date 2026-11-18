@@ -41,6 +41,7 @@ def _raw(family, p, u):
 
 @dataclass
 class Shape:
+    """A response curve of one family with fixed parameters, normalised to peak at 1 on [0, 1]."""
     family: str
     params: dict = field(default_factory=dict)
 
@@ -51,6 +52,7 @@ class Shape:
         return np.clip(_raw(self.family, self.params, u) / self._norm, 0.0, 1.0)
 
     def to_dict(self):
+        """Family and parameters."""
         return {'family': self.family, 'params': self.params}
 
 

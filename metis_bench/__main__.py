@@ -39,6 +39,7 @@ def _gpu_problem():
 
 
 def main(argv=None):
+    """Parse the command line and run one command (see the module docstring for the list)."""
     parser = argparse.ArgumentParser(prog='metis_bench')
     sub = parser.add_subparsers(dest='command', required=True)
     sub.add_parser('oracles')
